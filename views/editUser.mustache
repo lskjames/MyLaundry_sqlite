@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+		<link href="https://unpkg.com/tabulator-tables@4.1.2/dist/css/tabulator.min.css" rel="stylesheet">
+		<script type="text/javascript" src="https://unpkg.com/tabulator-tables@4.1.2/dist/js/tabulator.min.js"></script>
+		<title>{{brand}} Laundry</title>
+	</head>
+	<style>
+		#TableFont{
+			font-size: 12px;
+			width:100%;
+		}
+		@media only screen and (max-width: 320px) {
+				/* For mobile phones: */
+				#TableFont{
+				font-size: 8px;
+				}
+		}
+	</style>
+	<body>
+		<!-- Navbar (sit on top) -->
+		<div class="w3-top">
+		  <div class="w3-bar w3-white w3-padding w3-card">
+		    <div class="w3-margin-left">
+	    		<div class="w3-dropdown-hover">
+	    			<button class="w3-button">Menu</button>
+				    <div class="w3-dropdown-content w3-bar-block">
+						<a href="/admin_exec" method="get" class="w3-bar-item w3-button">Admin Home</a>
+						<a href="/check_pricing" method="get" class="w3-bar-item w3-button">Pricing</a>
+						<a href="/chg_password_admin" method="get" class="w3-bar-item w3-button">Change Password</a>
+					</div>
+				</div>
+			    <div class="w3-right">
+			    	<a href="/logout" method="get" class="w3-bar-item w3-button"><b>Log Out</b></a>
+			    </div>
+		    <!-- Float links to the right. Hide them on small screens -->
+		  	</div>
+		  </div>
+		</div>
+		<header class="w3-display-container w3-content w3-center w3-margin" style="max-width:1500px; padding-top:74px;" id="home">
+		  <img href="/" method="get" class="w3-image" src="images/otouch.png" alt="Architecture" width="1500" height="800">
+		</header>
+
+		<div class="w3-container w3-padding-large w3-pale-yellow">
+			<h3>Edit User</h3>
+			<div class="w3-section">
+				<div class="w3-section">
+					<table id="TableFont" class="w3-border w3-striped w3-centered compact stripe">
+						<tr>
+							<th>User</th>
+							<th>Status</th>
+							<th>Activate</th>
+							<th>Deactivate</th>
+							<th>Delete</th>
+						</tr>
+						{{#users}}
+							<tr>
+								<td width="40">{{us}}</td>
+								<td>{{status}}</td>
+								<td><form action="/active_user" method="post">
+									<button name="Username" value={{us}} type="submit">Activate</button>
+								</form></td>
+								<td><form action="/deactive_user" method="post">
+									<button name="Username" value={{us}} type="submit">Deactivate</button>
+								</form></td>
+								<td><form action="/delete_user" method="post" onsubmit="return confirm('Do you confirm to delete this user?');">
+									<button name="Username" value={{us}} type="submit">Delete</button>
+								</form></td>
+							</tr>
+						{{/users}}
+					</table>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

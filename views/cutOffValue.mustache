@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+		<title>{{brand}} Laundry</title>
+		<style>
+			#HeadRow{
+				background:#FFFACD;
+				color:black;
+				font-weight:bold;
+			}
+			.optionsDiv {
+				padding-bottom:10px;
+				font-weight:bold;
+			}
+			#selectField{
+				-webkit-border-radius: 5px;
+				-moz-border-radius: 5px;
+				border-radius: 5px;
+				border: 1px solid #ccc;
+				font-size: 16px;
+				height: 30px;
+				width: 200px;
+				color:white;
+				background-color: #00BFFF;
+			}
+			.odd{
+				background:#FFFFE0;
+			}
+			.even{
+				background:#FFFFE0;
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Navbar (sit on top) -->
+		<div class="w3-top">
+		  <div class="w3-bar w3-white w3-wide w3-padding w3-card">
+		    <a href="#home" class="w3-bar-item w3-button"><b>{{brand}}</b></a>
+		    <div class="w3-right">
+		    	<a href="/logout" method="get" class="w3-bar-item w3-button"><b>Log Out</b></a>
+		    </div>
+		    <!-- Float links to the right. Hide them on small screens -->
+		  </div>
+		</div>
+		<header class="w3-display-container w3-content w3-center w3-margin" style="max-width:1500px; padding-top:74px;" id="home">
+		  <img href="/" method="get" class="w3-image" src="images/otouch.png" alt="Architecture" width="1500" height="800">
+		</header>
+    	<div class="w3-container w3-padding-large w3-pale-yellow">
+	        Filter By Groups
+	        <select id="selectField" name="myGroup">
+	        	<option value="All" selected="selected">All</option>
+	        	{{#items}}
+	            	<option value={{group}}>{{group}}</option>
+	            {{/items}}
+	        </select>
+	        <br>
+	        <table id="myMachines" class="cell-border w3-centered compact stripe" width="100%">
+		        <tr id="HeadRow">
+		            <td>Group of Machines</td>
+		        </tr>
+		        {{#items}}
+		        	<tr position={{group}}>
+		            	<td>{{#GroupedMachines}}
+		            			{{machine}}<br>
+		            		{{/GroupedMachines}}<br>
+		            		Last Cut Off Date and Time: {{cutOfDate}}<br>
+		            		Status: {{mystatus}}<br>
+		            		<form action="/cutOffNow" method="post" onsubmit="return confirm('Do you confirm to cut off the coin counting now?');">
+							<button name="group" value={{group}} type="submit">CutOff</button></form>&ensp;
+							<form action="/wantCutOff" method="post">
+							<button name="group" value={{group}} type="submit">Submit</button></form>&ensp;
+						</td>
+		        	</tr>
+		        {{/items}}
+	    	</table>
+    	</div>
+	</body>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+	<script>
+		$(document).ready(function() {
+		    function addRemoveClass(theRows) {
+		        theRows.removeClass("odd even");
+		        theRows.filter(":odd").addClass("odd");
+		        theRows.filter(":even").addClass("even");
+		    }
+		    var rows = $("table#myMachines tr:not(:first-child)");
+		    rows.hide();
+		    addRemoveClass(rows);
+		    $("#selectField").on("change", function() {
+		        var selected = this.value;
+		        if (selected != "All") {
+		        	console.log("check")
+		            rows.filter("[position=" + selected + "]").show();
+		            rows.not("[position=" + selected + "]").hide();
+		            var visibleRows = rows.filter("[position=" + selected + "]");
+		            addRemoveClass(visibleRows);
+		        } else {
+		            rows.hide();
+		            addRemoveClass(rows);
+		        }
+		    });
+		});
+	</script>
+</html>

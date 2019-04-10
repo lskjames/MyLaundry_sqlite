@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+		<title>{{brand}} Laundry</title>
+		<style>
+			#HeadRow{
+				background:#FFFACD;
+				color:black;
+				font-weight:bold;
+			}
+			.optionsDiv {
+				padding-bottom:10px;
+				font-weight:bold;
+			}
+			#selectField{
+				-webkit-border-radius: 5px;
+				-moz-border-radius: 5px;
+				border-radius: 5px;
+				border: 1px solid #ccc;
+				font-size: 16px;
+				height: 30px;
+				width: 200px;
+				color:white;
+				background-color: #00BFFF;
+			}
+			.odd{
+				background:#FFFFE0;
+			}
+			.even{
+				background:#FFFFE0;
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Navbar (sit on top) -->
+		<div class="w3-top">
+		  <div class="w3-bar w3-white w3-wide w3-padding w3-card">
+		    <a href="#home" class="w3-bar-item w3-button"><b>{{brand}}</b></a>
+		    <div class="w3-right">
+		    	<a href="/logout" method="get" class="w3-bar-item w3-button"><b>Log Out</b></a>
+		    </div>
+		    <!-- Float links to the right. Hide them on small screens -->
+		  </div>
+		</div>
+		<header class="w3-display-container w3-content w3-center w3-margin" style="max-width:1500px; padding-top:74px;" id="home">
+		  <img href="/" method="get" class="w3-image" src="images/otouch.png" alt="Architecture" width="1500" height="800">
+		</header>
+		<form action="/manualCut" method="post" onsubmit="return confirm('Do you confirm the number of Coin Calculated?');">
+	    	<div class="w3-container w3-padding-large w3-pale-yellow">
+		        <p id="machine_name">{{grp}}</p>
+		        <p id="cutoffTime">Cut Off Time :  {{cft}}</p>
+		        <input type="hidden" name="group" value={{grp}}></td>
+		        <br>
+		        <table id="myMachines" class="cell-border w3-centered compact stripe" width="100%">
+		        	<tr>
+		        		<td><label for="Machine">Machine Name</label></td>
+		        		<td><label for="money_enter">Coin Counted</label></td>
+		        	</tr>
+		        	{{#mchs}}
+			        	<tr>
+			        		<td>{{name}}</td>
+			        		<td><input type="number" name={{name}} required></td>
+						</tr>
+					{{/mchs}}
+					{{#vend}}
+		        	<tr position="VEND">
+		        		<td>
+		        			<div class="w3-section">
+		        				<fieldset>
+			        				<div class="w3-row-padding">
+			        					<label for="det_rcv">Calculated Detergents</label>
+										<input type="number" name="det_rcv">
+									</div>
+									<div class="w3-row-padding">
+										<label for="soft_rcv">Calculated Softners</label>
+										<input type="number" name="soft_rcv">
+									</div>
+									<div class="w3-row-padding">
+										<label for="beg_rcv">Calculated Laundry Beg</label>
+										<input type="number" name="beg_rcv">
+									</div>
+							</fieldset>
+							</div>
+						</td>
+					</tr>
+					{{/vend}}
+				</table>
+				<button type="submit">Submit</button>
+	    	</div>
+	    </form>
+	</body>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+</html>

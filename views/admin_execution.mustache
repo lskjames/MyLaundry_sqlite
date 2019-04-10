@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.19/css/jquery.dataTables.css">
+		<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.js"></script>
+		<style>
+			.dotgreen {
+			  height: 25px;
+			  width: 25px;
+			  background-color: #008000;
+			  border-radius: 50%;
+			  display: inline-block;
+			}
+			.dotred {
+			  height: 25px;
+			  width: 25px;
+			  background-color: #FF0000;
+			  border-radius: 50%;
+			  display: inline-block;
+			}
+			.dotblue {
+			  height: 25px;
+			  width: 25px;
+			  background-color: #00FFFF;
+			  border-radius: 50%;
+			  display: inline-block;
+			}
+		</style>
+		<title>{{brand}} Laundry</title>
+	</head>
+	<body>
+		<!-- Navbar (sit on top) -->
+		<div class="w3-top">
+		  	<div class="w3-bar w3-white w3-padding w3-card">
+		    	<div class="w3-margin-left">
+		    		<div class="w3-dropdown-hover">
+		    			<button class="w3-button">Menu</button>
+		    			<div class="w3-dropdown-content w3-bar-block">
+		    				<a href="/check_pricing" method="get" class="w3-bar-item w3-button">Pricing</a>
+		    				<a href="/edit_user" method="get" class="w3-bar-item w3-button">User Manage</a>
+		    				<a href="/chg_password_admin" method="get" class="w3-bar-item w3-button">Change Password</a>
+		    			</div>
+		    		</div>
+		    		<div class="w3-right">
+		    			<a href="/logout" method="get" class="w3-bar-item w3-button"><b>Log Out</b></a>
+		    		</div>
+		    	<!-- Float links to the right. Hide them on small screens -->
+		  		</div>
+			</div>
+		</div>
+
+		<header class="w3-display-container w3-content w3-center w3-margin" style="max-width:1500px; padding-top:74px;" id="home">
+		  <img href="/" method="get" class="w3-image" src="images/otouch.png" alt="Architecture" width="1500" height="800">
+		</header>
+
+		<div class="w3-container w3-padding-large w3-pale-yellow">
+			<h3>Remote Paying the Machines in {{outlet}}</3>
+			<div class="w3-section">
+				<form action="/manual_turnOn" method="post">
+					<div class="w3-section">
+						<label for="mchName">Select the machines</label>
+						<select name="mchName"> 
+							{{#machines}}
+								<option value={{machineName}}>{{machineName}}</option>
+							{{/machines}}
+						</select>
+					</div>
+					<div class="w3-section">
+						<label for="amount">Key in the amount:</label>
+						<input type="number" name="amount" placeholder="0" required>
+					</div>
+					<div class="w3-section">
+		        		<label for="remark">Remark:</label>
+		        		<input class="w3-input w3-border" type="text" name="remark" placeholder="Please state your reason">
+		      		</div>
+		      		<button type="submit" class="w3-button w3-black w3-margin-bottom"><i class="fa fa-paper-plane w3-margin-right"></i>Pay</button>
+				</form>
+			</div>
+			</div class="w3-section w3-centered">
+				<br>
+				&nbsp; &nbsp;<span class="dotgreen"></span> Online/Running &nbsp;<span class="dotred"></span> Offline &nbsp;<span class="dotblue"></span> StandBy
+				<br>
+				<br>
+			</div>
+			<table id="example-table" class="cell-border w3-centered compact stripe" width="100%"></table>
+
+		</div>
+		
+  		<script src="/socket.io/socket.io.js"></script>
+		<script src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js"></script>
+		<script>
+			var socket = io.connect({{{url}}});
+			$(document).ready(function() {
+				table = $('#example-table').DataTable( {
+					searching: false,
+					paging: false,
+			        data: "",
+			        columns: [
+			            {title: "Machine Name", data:"machineName"},
+				    	{title: "Online", data:"active"},
+				    	{title: "Running", data:"locked"}
+			        ]
+			    });
+			    socket.on("devices", function (data) {
+	  				if (data) {
+	  					table.destroy();
+	  					table = $('#example-table').DataTable( {
+	  						searching: false,
+	  						paging: false,
+					        data: data,
+					        order: [],
+					        columns: [
+					            {title: "Machine Name", data:"machineName"},
+						    	{title: "Online", data:"active", render: function (data, type, row) {
+						    		if (data == "Online") {
+						    			return '<span class="dotgreen"></span>'
+						    		} else if (data == "Offline") {
+						    			return '<span class="dotred"></span>'
+						    		}
+						    	}},
+						    	{title: "Running", data:"locked", render: function (data, type, row) {
+						    		if (data == "Standby") {
+						    			return '<span class="dotblue"></span>'
+						    		} else if (data == "Running") {
+						    			return '<span class="dotgreen"></span>'
+						    		}
+						    	}}
+					        ]
+					    });
+	  				}
+	  			});
+			});
+		</script>
+	</body>
+	
+</html>

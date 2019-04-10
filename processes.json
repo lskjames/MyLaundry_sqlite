@@ -1,0 +1,12 @@
+{
+      "apps" : [{
+        "name"        : "PJCC",
+        "script"      : "./server.js",
+        "watch_options": {
+         	usePolling: true
+        },
+        "watch"       : ["./server.js", "./lib", "./package.json", "./node_modules", "package-lock.json", "./auth", "./credentials","./data", "./public/images", "./scripts", "./views", "./list_devices.js"],
+	"ignore_watch": ["./README.md", "./reports", "./mydb", "./public/fw", "./cross_outlet_data", "./processes.json"],
+        "log_date_format"  : "YYYY-MM-DD HH:mm Z",
+      }]
+}

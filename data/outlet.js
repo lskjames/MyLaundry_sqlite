@@ -1,0 +1,21 @@
+module.exports = {
+	brand: "Otouch",
+	name: "PJ21",
+	cold10kg: 5,
+	cold14kg: 7,
+	cold25kg: 11,
+	warm10kg: 6,
+	warm14kg: 8,
+	warm25kg: 13,
+	hot10kg: 7,
+	hot14kg: 9,
+	hot25kg: 15,
+	detPrice: 2,
+	softPrice: 2,
+	begPrice: 2,
+	clientID: "692596068646940610",
+	clientSecret:"LsgxtuDrkLYprIWpDVAytIuUXguxNmrF",
+	rptFolderID: "1S0nhFQ3MY3Kylj6nUiOkStVSO5AOSklQ",
+    	crossOutletID: "1fcH7_0kv0ycaei4mh71MNKY1HRprdx2J",
+	url: "\"https://membranous-molly-7085.dataplicity.io\""
+}

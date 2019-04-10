@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+		<link href="https://unpkg.com/tabulator-tables@4.1.2/dist/css/tabulator.min.css" rel="stylesheet">
+		<script type="text/javascript" src="https://unpkg.com/tabulator-tables@4.1.2/dist/js/tabulator.min.js"></script>
+		<title>{{brand}} Laundry</title>
+		<style>
+			#TableFont{
+				font-size: 12px;
+				width:100%;
+			}
+			@media only screen and (max-width: 320px) {
+  				/* For mobile phones: */
+  				#TableFont{
+    				font-size: 8px;
+  				}
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Navbar (sit on top) -->
+		<div class="w3-top">
+		  <div class="w3-bar w3-white w3-padding w3-card">
+		    <div class="w3-margin-left">
+	    		<div class="w3-dropdown-hover">
+	    			<button class="w3-button">Menu</button>
+				    <div class="w3-dropdown-content w3-bar-block">
+						<a href="/user_exec" method="get" class="w3-bar-item w3-button">Home</a>
+						<a href="/chg_password_user" method="get" class="w3-bar-item w3-button">Change Password</a>
+					</div>
+				</div>
+			    <div class="w3-right">
+			    	<a href="/logout" method="get" class="w3-bar-item w3-button"><b>Log Out</b></a>
+			    </div>
+		    <!-- Float links to the right. Hide them on small screens -->
+		  	</div>
+		  </div>
+		</div>
+		<header class="w3-display-container w3-content w3-center w3-margin" style="max-width:1500px; padding-top:74px;" id="home">
+		  <img href="/" method="get" class="w3-image" src="images/otouch.png" alt="Architecture" width="1500" height="800">
+		</header>
+		<form action="/reGroup" method="post" onsubmit="return confirm('Do you confirm want to change the group of the machines ? ');">
+			<div class="w3-container w3-padding-large w3-pale-yellow">
+				<h3>Cutoff Status</h3>
+				<div class="w3-section">
+					<table id="TableFont" class="w3-border w3-striped compact stripe">
+						<tr>
+							<th>Machines</th>
+							<th>Group</th>
+							<th>Change to</th>
+						</tr>
+						{{#machines}}
+							<tr>
+								<td>{{machine}}</td>
+								<td>{{currGrp}}</td>
+								<td><select id="selectField" name={{machine}}>
+									<option name={{machine}} value={{currGrp}} selected="selected">{{currGrp}}</option>
+									{{#grps}}
+			            				<option name={{machine}} value={{group}}>{{group}}</option>
+			            			{{/grps}}
+		            			</select><tc>
+							</tr>
+						{{/machines}}
+					</table>
+				</div>
+				<button type="submit">Submit</button></form>
+			</div>
+		</form>
+	</body>
+</html>
