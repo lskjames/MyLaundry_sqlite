@@ -36,18 +36,29 @@
 	<body>
 		<!-- Navbar (sit on top) -->
 		<div class="w3-top">
-		  <div class="w3-bar w3-white w3-wide w3-padding w3-card">
-		    <a href="#home" class="w3-bar-item w3-button"><b>{{brand}}</b></a>
-		    <div class="w3-right">
-		    	<a href="/logout" method="get" class="w3-bar-item w3-button"><b>Log Out</b></a>
-		    </div>
+		  <div class="w3-bar w3-white w3-padding w3-card">
+		    <div class="w3-margin-left">
+	    		<div class="w3-dropdown-hover">
+	    			<button class="w3-button">Menu</button>
+				    <div class="w3-dropdown-content w3-bar-block">
+						<a href="/user_exec" method="get" class="w3-bar-item w3-button">Home</a>
+						<a href="/chg_password_user" method="get" class="w3-bar-item w3-button">Change Password</a>
+	    				<a href="/regroup" method="get" class="w3-bar-item w3-button">Rearrange group</a>
+	    				<a href="/stopMonitoring" method="get" class="w3-bar-item w3-button">Monitoring</a>
+	    				<a href="/manageGroup" method="get" class="w3-bar-item w3-button">Manage Group</a>
+					</div>
+				</div>
+		   		<div class="w3-right">
+		    		<a href="/logout" method="get" class="w3-bar-item w3-button"><b>Log Out</b></a>
+		    	</div>
 		    <!-- Float links to the right. Hide them on small screens -->
+			</div>
 		  </div>
 		</div>
 		<header class="w3-display-container w3-content w3-center w3-margin" style="max-width:1500px; padding-top:74px;" id="home">
 		  <img href="/" method="get" class="w3-image" src="images/otouch.png" alt="Architecture" width="1500" height="800">
 		</header>
-    	<div class="w3-container w3-padding-large w3-pale-yellow">
+		<div class="w3-container w3-padding-large w3-pale-yellow">
 	        Filter By Groups
 	        <select id="selectField" name="myGroup">
 	        	<option value="All" selected="selected">All</option>

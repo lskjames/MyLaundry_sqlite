@@ -7,6 +7,7 @@ var myParser = require("body-parser");
 var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
+var ss = require('socket.io-stream');
 var querystring = require('querystring');
 var json2csvParser = require('json2csv').Parser;
 var nodemailer = require('nodemailer');
@@ -19,6 +20,7 @@ var session = require('express-session');
 var schedule = require('node-schedule');
 var mustacheExpress = require('mustache-express');
 var math = require('math');
+var crypto = require('crypto');
 var chkHeartbeat = require('./scripts/chkHB.js')
 var rpting = require('./scripts/reporting.js')
 var mymqtt = require('./scripts/mqtt.js')
@@ -27,34 +29,32 @@ var moment = require('moment');
 var childProcess = require('child_process');
 const outlet = require('./data/outlet.js')
 var reports_deposit_area = outlet.rptFolderID
-var githubUsername = 'lskjames'
+var githubUsername = outlet.ghusn
+var fs = require('fs');
 
 var transporter = nodemailer.createTransport({
 	host: 'smtp.gmail.com',
     port: 465,
     secure: true, // use SSL
 	auth:{
-		user: 'test@gmail.com',
-		pass: 'testing12345'
+		user: outlet.email,
+		pass: outlet.gmailpw
 	}
 });
 var doneSent = 0;
 var counting = 0;
-var noPing = 0;
 var doneReset = 0;
+var noPing = 0;
+const mode = "Test";
 const sqlite3 = require('sqlite3').verbose();
 const ePaymentCsv = "EpaymentReport";
 const data = require('./auth/userData.js');
 const data2 = require('./auth/data.js');
 
-var myTransRecord = {}
-var myCutOffRecord = {}
 var cutOffTemp = {}
 var cutOffGroup = {}
-cutOffGroup["G1"] = cutOffGroup["G2"] = cutOffGroup["G3"] = cutOffGroup["G4"] = cutOffGroup["G5"] = cutOffGroup["G6"] = cutOffGroup["G7"] = cutOffGroup["G8"] = {}
-
-var tmp = {}
 var pricing_data = {}
+var transIDdata = {}
 
 // const Gpio = require('onoff').Gpio;
 // const jamming = new Gpio(4, 'in', 'rising');
@@ -65,10 +65,10 @@ var pricing_data = {}
 //      }
 //      console.log("it is jamming now")
 //      counting++
-//      if (counting == 5) {
+//      if (counting == 15) {
 //          if (!doneSent) {
 //              var mailOptions = {
-//                      from: 'ptutm.jameslsk@gmail.com',
+//                      from: outlet.email,
 //                      to: 'jamesleesukey@gmail.com',
 //                      subject: 'Sending Email to notify that someone is jamming the network at' + outlet.name ,
 //                      text: 'Please check !!!'
@@ -139,9 +139,18 @@ function authenticate_admin(req, res, username, password) {
 				}
 			}
 			if (userfound) {
+				var password_md5 = crypto.createHash('md5').update(password).digest('hex');
 				let sql2 = 'SELECT password pw, role r FROM admin WHERE username = ?';
 				db.get(sql2, [username], function(err, row) {
-					if (password == row.pw) {
+					if (password_md5 == row.pw) {
+						req.session.authenticated = true;
+						req.session.username = username;
+						req.session.role = row.r;
+						console.log('User & Password Authenticated! '+ req.session.role);
+                        console.log(req.session)
+						//return req.session;
+						//db.close();
+					} else if (password == row.pw) {
 						req.session.authenticated = true;
 						req.session.username = username;
 						req.session.role = row.r;
@@ -166,12 +175,12 @@ function authenticate_admin(req, res, username, password) {
 							res.render('admin_execution',{ url: outlet.url, machines: tmpdata, brand: outlet.brand, outlet: outlet.name});
 						}
 					} else {
-						res.render('login_admin', {brand: outlet.brand, message: "Login Failed, please try again."})
+						res.render('index', {brand: outlet.brand, outlet: outlet.name, message2: "Login Failed, please try again.", reply: "failed2"})
 					}
 				})
 			} else {
 				req.session.authenticated = false;
-				res.render('login_admin', {brand: outlet.brand, message: "User not found !"});
+				res.render('index', {brand: outlet.brand, outlet: outlet.name, message2: "User not found !", reply: "failed2"})
 			}	
 		})
 			
@@ -205,9 +214,16 @@ function authenticate_user(req, res, username, password) {
 				}
 			}
 			if (userfound) {
+				var password_md5 = crypto.createHash('md5').update(password).digest('hex');
 				let sql = 'SELECT password pw, status act FROM users WHERE username = ?';
 				db.get(sql, [username], function(err, row) {
-					if (password == row.pw) {
+					if (password_md5 == row.pw) {
+						req.session.authenticated = true;
+						req.session.username = username;
+						req.session.actv = row.act;
+						console.log('User & Password Authenticated!');
+						db.close();
+					} else if (password == row.pw) {
 						req.session.authenticated = true;
 						req.session.username = username;
 						req.session.actv = row.act;
@@ -224,15 +240,15 @@ function authenticate_user(req, res, username, password) {
 							})
 							res.render('execution',{ url: outlet.url, machines: tmpdata, brand: outlet.brand, outlet: outlet.name});
 						} else if (req.session.actv == "Inactive") {
-							res.render('login_user', {brand: outlet.brand, message: "Please consult your manager for Account Activation."})
+							res.render('index', {brand: outlet.brand, outlet: outlet.name, message1: "Please consult your manager for Account Activation.", reply: "failed"})
 						}
 					} else {
-						res.render('login_user', {brand: outlet.brand, message: "Login Failed, please try again."})
+						res.render('index', {brand: outlet.brand, outlet: outlet.name, message1: "Login Failed, please try again.", reply: "failed"})
 					}
 				})
 			} else {
 				req.session.authenticated = false;
-				res.render('login_user', {brand: outlet.brand, message: "User not found !"})
+				res.render('index', {brand: outlet.brand, outlet: outlet.name, message1: "User not found !", reply: "failed"})
 			}
 		})
 				
@@ -256,10 +272,12 @@ io.on('connection', function (socket) { // Notify for a new connection and pass 
     console.log('new connection');
     ///socket.emit("devices")
     var incremental = 0;
-    
     var update = setInterval(function () {
      	var tmpdata = []
+		const viCount = Object.keys(varItem).length;
+		var count = 0;
 		Object.keys(varItem).forEach(function(k){
+			count++;
 			if (varItem[k].typeOfMachine.match("dex_dryer_double")) {
 				if (!tmpdouble_top) {
 					var tmpdouble_top = {}
@@ -273,6 +291,13 @@ io.on('connection', function (socket) { // Notify for a new connection and pass 
 				} else if (varItem[k].active == false) {
 					tmpdouble_bot.active = "Offline"
 					tmpdouble_top.active = "Offline"
+				}
+				if (varItem[k].check == true) {
+					tmpdouble_top.check = "On"
+					tmpdouble_bot.check = "On"
+				} else if (varItem[k].check == false) {
+					tmpdouble_bot.check = "Off"
+					tmpdouble_top.check = "Off"
 				}
 				tmpdouble_top.version = varItem[k].version
 				tmpdouble_bot.version = varItem[k].version
@@ -328,19 +353,48 @@ io.on('connection', function (socket) { // Notify for a new connection and pass 
 				if (varItem[k].typeOfMachine == "detergent") {
 					tmpMachine.locked = "Standby"
 				}
+				if (varItem[k].check == true) {
+					tmpMachine.check = "On"
+				} else if (varItem[k].check == false) {
+					tmpMachine.check = "Off"
+				}
 				tmpdata.push(tmpMachine)
 			}
+			if (count == viCount) {
+				socket.emit("devices", tmpdata); // Emit on the opened socket.
+			}
 		})
-  //       //console.log('emit new value', tmpdata);
-        socket.emit("devices", tmpdata); // Emit on the opened socket.
      }, 2000);
-
     socket.on('disconnect', function() {
       console.log('Got disconnect!');
       clearInterval(update)
     })
 });
-refreshValue(varItem, mymqtt.mqttCN, mymqtt.mqttSUB, updateCutOffGroup)
+
+io.of('/reports').on('connection', function(socket) {
+  var dailySales = "DailySum_Sales_"+outlet.name+"_March"
+
+  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
+    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
+  });
+  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
+    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
+  });
+  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
+    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
+  });
+  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
+    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
+  });
+  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
+    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
+  });
+  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
+    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
+  });
+});
+
+refreshValue(varItem, mymqtt.mqttCN, mymqtt.mqttSUB)
 
 /////////////////////////////////////
 ////CHECK HEARTBEAT /////////////////
@@ -350,83 +404,79 @@ refreshValue(varItem, mymqtt.mqttCN, mymqtt.mqttSUB, updateCutOffGroup)
 
 setInterval(chkHeartbeat.checkHeartbeat, 60000, varItem);
 // schedule.scheduleJob('00 30 23 * * *', function(){
-schedule.scheduleJob('00 29 09 * * *', function(){
-	rpting.schedulej(varItem);
-	rpting.scheduleD(varItem);
-})
+if (mode == "production") {
+	console.log("its production")
+	schedule.scheduleJob('00 30 23 * * *', function(){
+		rpting.schedulej(varItem);
+		rpting.scheduleD(varItem);
+	})
 
-// schedule.scheduleJob('00 35 15 * * *', function(){
-// 	rpting.scheduleE();
-// })
+	schedule.scheduleJob('00 34 23 * * *', function(){
+		rpting.scheduleE();
+		backupReports();
+	})
+	// /////////// update the monthly detergent sales unit for this branch //////
+	
+	schedule.scheduleJob('00 00 01 * * *', function(){
+		rpting.scheduleZ();
+	})
 
-// /////////// update the monthly detergent sales unit for this branch //////
+	schedule.scheduleJob('00 00 00 1 * *', function(){
+	//schedule.scheduleJob('00 53 17 * * *', function(){
+		rpting.scheduleA(varItem);
+	})
 
-schedule.scheduleJob('00 32 11 * * *', function(){
-//schedule.scheduleJob('00 53 17 * * *', function(){
-	rpting.scheduleA(varItem);
-})
+	schedule.scheduleJob('00 04 00 1 * *', function(){
+		rpting.scheduleE();
+		backupMonthlyReport();
+	})
 
-// schedule.scheduleJob('00 35 15 * * *', function(){
-// 	rpting.scheduleE();
-// })
+	///// schedule jobs for updating report no1, no2 and no5 ///////
+	//schedule.scheduleJob('00 13 23 * * *', function(){
+	schedule.scheduleJob('00 30 08 * * *', function(){
+		rpting.scheduleD(varItem);
+	})
 
-///// schedule jobs for updating report no1, no2 and no5 ///////
-//schedule.scheduleJob('00 13 23 * * *', function(){
-schedule.scheduleJob('00 31 00 * * *', function(){
-	rpting.scheduleD(varItem);
-})
+	schedule.scheduleJob('00 34 08 * * *', function(){
+		rpting.scheduleE();
+	})
 
-// schedule.scheduleJob('00 33 00 * * *', function(){
-// 	rpting.scheduleE();
-// })
+	schedule.scheduleJob('00 00 18 * * *', function(){
+	//schedule.scheduleJob('00 45 20 * * *', function(){
+		rpting.scheduleD(varItem);
+	})
 
-schedule.scheduleJob('00 34 00 * * *', function(){
-//schedule.scheduleJob('00 45 20 * * *', function(){
-	rpting.scheduleD(varItem);
-})
+	schedule.scheduleJob('00 04 18 * * *', function(){
+		rpting.scheduleE();
+	})
 
-// schedule.scheduleJob('00 36 00 * * *', function(){
-// 	rpting.scheduleE();
-// })
+	//rmapi.queryQRcodes();
 
+	if (outlet.name == "PJCC") {
 
-//rmapi.queryQRcodes();
+	//////// update the cross outlet det sales unit data //////////////
+	/// temp comment out since other other are not ready yet.
+		schedule.scheduleJob('00 20 00 1 * *', function(){
+			rpting.scheduleB();
+		})
 
-if (outlet.name == "SP") {
+		schedule.scheduleJob('00 30 00 1 * *', function(){
+			rpting.scheduleC();
+		})
 
-//////// update the cross outlet det sales unit data //////////////
-/// temp comment out since other other are not ready yet.
-//	schedule.scheduleJob('00 45 00 * * *', function(){
-//		rpting.scheduleB();
-//	})
-//
-//	schedule.scheduleJob('00 40 15 * * *', function(){
-//		rpting.scheduleC();
-//	})
-//
-//	schedule.scheduleJob('00 42 15 * * *', function(){
-//		rpting.scheduleE();
-//	})
+		schedule.scheduleJob('00 35 00 1 * *', function(){
+			rpting.scheduleE();
+		})
+	}
+
+	if (outlet.name == "SP" || outlet.name == "PJ21") {
+		// schedule.scheduleJob('00 30 03 * * *', function(){
+		// 	resetTux();
+		// })
+		checkFlag();
+		var timeoutHandle = setTimeout(dropped, 360000);
+	}
 }
-
-// If modifying these scopes, delete token.json.
-
-
-	//onMachine("6786f3831d7a750bac397d8967b81044",20)
-	//var end = false;
-//		for (var i =ID; i <= 500; i++){
-//	setTimeout(onMachine, 30000, "6786f3831d7a750bac397d8967b81044", 5)
-//}
-
-
-
-//rmapi.queryTrans("181023073825020027380741");
-//rmapi.queryTrans("181023081252020029274735");
-//rmapi.queryProfile();
-//	console.log(tmp)
-	//createEntry("12345", "180912150940020027044581", tmp.order.title, tmp.order.amount, tmp.payee.userId, tmp.createdAt, tmp.updatedAt, tmp.status)
-	//console.log(myTransRecord["180912150940020027044581"])
-//	save2csv("ePayment",myTransRecord["180912150940020027044581"])
 
 /////////////////////////////////////
 ////// FUNCTION DECLARATION /////////
@@ -443,8 +493,8 @@ function object_value (object) {
 
 /// initialize value from the database 
 
-function refreshValue (VI, callback1, callback2, callback3) {
-	let db = new sqlite3.Database('./mydb/laundry.db', sqlite3.OPEN_READWRITE, (err) => {
+function refreshValue (VI, callback1, callback2) {
+	let db = new sqlite3.Database('./mydb/laundry.db', sqlite3.OPEN_READONLY, (err) => {
   	if (err) {
     	console.error(err.message);
   	}
@@ -538,28 +588,27 @@ function refreshValue (VI, callback1, callback2, callback3) {
 	  				//console.log(VI[k].totalTime)
 	  			})
 	  		}
-			let sql0 = 'SELECT totalPaid tp, totalCoin tc, totalWechat tw, totalEpay te, wechatPaid wp, wechatPaidtmp wpt, epayPaid ep, epayPaidtmp ept, coinPaid cp, amountPaid ap, manualPaid mp, manualPaidtmp mpt, version v, mygroup mg, totalManual tm FROM dailyTotalValue WHERE MchCode = ?';
+			let sql0 = 'SELECT totalPaid tp, totalCoin tc, totalWechat tw, totalEpay te, wechatPaid wp, wechatPaidtmp wpt, epayPaid ep, epayPaidtmp ept, coinPaid cp, amountPaid ap, manualPaid mp, manualPaidtmp mpt, version v, mygroup mg, totalManual tm, checking chk FROM dailyTotalValue WHERE MchCode = ?';
 			db.get(sql0, [k], function(err, row) {
 				if (err) {
 	    			return console.error(err.message);
 	  			}
-	  			//console.log("it is in")
 				VI[k].amountPaid = row.ap
 				VI[k].coinPaid = row.cp
 				VI[k].wechatPaid = row.wp
 				VI[k].manualPaid = row.mp
 				VI[k].epayPaid = row.ep
-  				VI[k].wechatPaidtmp = row.wpt
-  				VI[k].manualPaidtmp = row.mpt
-  				VI[k].epayPaidtmp = row.ept
-	  			VI[k].totalManual = row.tm
-	  			VI[k].totalPaid = row.tp
+				VI[k].wechatPaidtmp = row.wpt
+				VI[k].manualPaidtmp = row.mpt
+				VI[k].epayPaidtmp = row.ept
+				VI[k].totalManual = row.tm
+				VI[k].totalPaid = row.tp
 				VI[k].totalCoin = row.tc
 				VI[k].totalWechat = row.tw
 				VI[k].totalEpay = row.te
 				VI[k].version = row.v
 				VI[k].group = row.mg
-				//console.log(VI[k])
+				VI[k].check = row.chk
 			})
 			let sql2 = 'SELECT totalCoin tc, cutOffTC ctc, totalDet td, cutOffTD ctd, totalSoft ts, cutOffTS cts, totalBeg tb, cutOffTB ctb, startTime st, lastCFtime lcft, mystatus mst, cutOffBy cfb FROM cutOffTotalValue WHERE MchCode = ?';
 			db.get(sql2, [k], function(err, row) {
@@ -572,8 +621,12 @@ function refreshValue (VI, callback1, callback2, callback3) {
 	  			VI[k].cutOffTB = row.tb
 	  			VI[k].cutOffST = row.st
 	  			VI[k].status = row.mst
-	  			cutOffTemp[row.st] = {}
-				cutOffTemp[row.st][k] = {};
+	  			if (!cutOffTemp[row.st]) {
+	  				cutOffTemp[row.st] = {}
+	  			} 
+	  			if (!cutOffTemp[row.st][k]) {
+	  				cutOffTemp[row.st][k] = {};
+	  			}
 				cutOffTemp[row.st][k].cutOffBy = row.cfb
 				cutOffTemp[row.st][k].cutOffTC = row.ctc
 				cutOffTemp[row.st][k].cutOffTD = row.ctd
@@ -589,120 +642,80 @@ function refreshValue (VI, callback1, callback2, callback3) {
 	  		}
 	  		pricing_data = Object.assign({}, row[0]);
 	  		console.log(pricing_data)
-			callback1();
-			callback2(VI, pricing_data);
-			callback3(VI);
 		})
+		let sql3 = 'SELECT transid tid FROM transID'
+		db.all(sql3, [], function(err, row) {
+			if (err) {
+	    		return console.error(err.message);
+	  		}
+	  		for (i = 0; i < row.length; i++) {
+	  			transIDdata[row[i].tid] = {}
+	  			transIDdata[row[i].tid].done = "Yes";
+	  			//console.log(transIDdata)
+	  			setTimeout(deleteTransID, 7200000, row[i].tid);
+	  		}
+	  	})
+	  	let sql4 = 'SELECT MyGroup mg, cutOffTime cft, theStatus sts FROM cutOffgroup';
+		db.all(sql4, [], function(err, row) {
+			if (err) {
+				return console.error(err.message);
+			}
+			//console.log(row)
+			for (i = 0; i < row.length; i++) { 
+				cutOffGroup[row[i].mg] = {}
+				cutOffGroup[row[i].mg].MyGroup = row[i].mg;
+				cutOffGroup[row[i].mg].cutOffTime = row[i].cft;
+				cutOffGroup[row[i].mg].theStatus = row[i].sts;
+				//console.log(cutOffGroup)
+			}
+			// console.log(cutOffGroup[k])
+		})
+		callback1();
+		callback2(VI, pricing_data);
 	})
 	db.close();
 }
-function updateCutOffGroup (VI) {
+
+function deleteGroup (grp) {
 	let db = new sqlite3.Database('./mydb/laundry.db', sqlite3.OPEN_READWRITE, (err) => {
 		if (err) {
 			console.error(err.message);
 		}
 		console.log('Connected to the laundry database.');
 	});
-	Object.keys(cutOffGroup).forEach(function(k) {
-		//console.log(VI[k])
-		let sql3 = 'SELECT * FROM cutOffgroup WHERE MyGroup = ?';
-		db.get(sql3, [k], function(err, row) {
-			//console.log(VI[k].group)
-			if (err) {
-				return console.error(err.message);
-			}
-			console.log(row)
-			cutOffGroup[k] = Object.assign({}, row);
-			console.log(cutOffGroup[k])
-		})
-	}) 
+	let sql3 = 'DELETE FROM cutOffgroup WHERE MyGroup = ?';
+	db.run(sql3, [grp], function(err, row) {
+		if (err) {
+			return console.error(err.message);
+		}
+	})
 }
+
+function addGroup (newGrp) {
+	let db = new sqlite3.Database('./mydb/laundry.db', sqlite3.OPEN_READWRITE, (err) => {
+		if (err) {
+			console.error(err.message);
+		}
+		console.log('Connected to the laundry database.');
+	});
+	//INSERT INTO users(username, password, status) VALUES(?,?,?)
+	let sql3 = 'INSERT INTO cutOffGroup(MyGroup, cutOffTime, theStatus) VALUES(?,?,?)';
+	let data = [newGrp.MyGroup, newGrp.cutOffTime, newGrp.theStatus]
+	db.run(sql3, data, function(err, row) {
+		if (err) {
+			return console.error(err.message);
+		}
+	})
+}
+
 // rendering function for epayment 
 
 //rmapi.queryQRcodes()
 
-var item1 = {
-	'order': {
-		'amount':300
-	},
-	'status': 'SUCCESS',
-	'method': 'BOOST',
-	'transId': '123'
-}
-
-var item2 = {
-	'order': {
-		'amount':400
-	},
-	'status': 'SUCCESS',
-	'method': 'BOOST',
-	'transId': '456'
-}
-
-//setInterval(addEmoney, 60000, item1, "e15ceae8fa62a160cebe0a1644e6116c", varItem, myTransRecord);
-//setInterval(addEmoney, 60000, item1, "ae7d7950ed68a29b627719c0723f0ca0", varItem, myTransRecord);
-//setInterval(addEmoney, 60000, item1, "eacd155d4cf3a996cfd92de5e623fffa", varItem, myTransRecord);
-
-// schedule.scheduleJob('00 30 20 * * *', function(){
-// 	addEmoney(item1, "467b712f6f3dd1baad34f7b11b75f7d1", varItem, myTransRecord);
-// 	addEmoney(item2, "ae7d7950ed68a29b627719c0723f0ca0", varItem, myTransRecord);
-// })
-
-function addEmoney (item, mchNo, VI, mTR) {
-	var timeNow = moment().format("DD/MM/YYYY HH:mm:ss")
-    var amountToPay = item.order.amount/100
-    var status = item.status
-    var remark = "NA"
-    var method = item.method
-    var transId = item.transId
-    if (amountToPay <= 25) {
-        if (VI[mchNo].active) {
-        	console.log("thanks")
-            //mymqtt.onMachine(mchNo,amountToPay)
-            if (method == "WECHATPAY") {
-	            if (VI[mchNo].typeOfMachine == "detergent") {
-	                VI[mchNo].totalWechat = VI[mchNo].totalWechat + amountToPay
-	                VI[mchNo].totalPaid = VI[mchNo].totalPaid + amountToPay
-	                VI[mchNo].wechatPaid = VI[mchNo].wechatPaid + amountToPay
-	                VI[mchNo].amountPaid = VI[mchNo].amountPaid + amountToPay
-	                //(mchNo, cp, wp, ep, mp, ap, tc, tw, te, tm, tp, type
-	                mymqtt.updateMoney(mchNo, 0, VI[mchNo].wechatPaid, 0, 0, 0, 0, VI[mchNo].totalWechat, 0, 0, VI[mchNo].totalPaid, "detWechat")
-	                mymqtt.updateAccumulative(mchNo, "Wechat_received", amountToPay)
-	            } else {
-	                VI[mchNo].wechatPaid = VI[mchNo].wechatPaid + amountToPay 
-	                VI[mchNo].amountPaid = VI[mchNo].amountPaid + amountToPay
-	                mymqtt.updateMoney(mchNo, 0, VI[mchNo].wechatPaid, 0, VI[mchNo].amountPaid, 0, 0, 0, 0, "Wechat")
-	            }
-	        } else {
-	        	if (VI[mchNo].typeOfMachine == "detergent") {
-	                VI[mchNo].totalEpay = VI[mchNo].totalEpay + amountToPay
-	                VI[mchNo].totalPaid = VI[mchNo].totalPaid + amountToPay
-	                VI[mchNo].epayPaid = VI[mchNo].epayPaid + amountToPay
-	                VI[mchNo].amountPaid = VI[mchNo].amountPaid + amountToPay
-	                //(mchNo, cp, wp, ep, mp, ap, tc, tw, te, tm, tp, type)
-	                mymqtt.updateMoney(mchNo, 0, 0, VI[mchNo].epayPaid, 0, 0, 0, 0, VI[mchNo].totalEpay, 0, VI[mchNo].totalPaid, "detEpay")
-	                mymqtt.updateAccumulative(mchNo, "Epay_received", amountToPay)
-	            } else {
-	                VI[mchNo].epayPaid = VI[mchNo].epayPaid + amountToPay 
-	                VI[mchNo].amountPaid = VI[mchNo].amountPaid + amountToPay
-	                mymqtt.updateMoney(mchNo, 0, 0, VI[mchNo].epayPaid, 0, VI[mchNo].amountPaid, 0, 0, 0, 0, 0, "Epay")
-	            }
-	        }
-        } else {
-            console.log(transId)
-            status = "FULL_REFUNDED"
-            remark = "Machine is not ready for epayment."
-        }
-    } else {
-		status = "FAILED"
-		remark = "The payment exceeded RM25";
-	}
-	rpting.createEntry(mchNo, method, transId, "W1", amountToPay, "Payee1", timeNow, status, remark, mTR)
-	rpting.save2csv("ePayment",mTR[transId], rpting.uploadNothing, reports_deposit_area)
-}
-
 function render (item, mchNo, res, mTR, VI, transId) {
-	var timeNow = moment().format("DD/MM/YYYY HH:mm:ss")
+	var timeNow = moment().format("HH:mm:ss")
+	var dateNow = moment().format("DD/MM/YYYY")
+	var transID = "'" + transId; 
 	console.log(item)
 	if (item.status == "SUCCESS") {
 		console.log("check")
@@ -718,13 +731,12 @@ function render (item, mchNo, res, mTR, VI, transId) {
 					mymqtt.onMachine(mchNo,amountToPay)
 					if (method == "WECHATPAY") {
 						if (VI[mchNo].typeOfMachine == "detergent") {
-			                VI[mchNo].totalPaid = VI[mchNo].totalPaid + amountToPay
-			                VI[mchNo].wechatPaidtmp = VI[mchNo].wechatPaidtmp + amountToPay
-			                VI[mchNo].amountPaid = VI[mchNo].amountPaid + amountToPay
-			                //(mchNo, cp, wp, ep, mp, ap, tc, tw, te, tm, tp, type
-			                mymqtt.updateMoney(mchNo, 0, VI[mchNo].wechatPaidtmp, 0, 0, VI[mchNo].amountPaid, 0, 0, 0, 0, VI[mchNo].totalPaid, "detWechat")
-			                mymqtt.updateAccumulative(mchNo, "Wechat_received", amountToPay)
-			                mymqtt.updatetotal(mchNo, "wechatPaidtmp", VI[mchNo].wechatPaidtmp)
+							VI[mchNo].totalPaid = VI[mchNo].totalPaid + amountToPay
+							VI[mchNo].wechatPaidtmp = VI[mchNo].wechatPaidtmp + amountToPay
+							VI[mchNo].amountPaid = VI[mchNo].amountPaid + amountToPay
+							//(mchNo, cp, wp, ep, mp, ap, tc, tw, te, tm, tp, type
+							mymqtt.updateMoney(mchNo, 0, VI[mchNo].wechatPaidtmp, 0, 0, VI[mchNo].amountPaid, 0, 0, 0, 0, VI[mchNo].totalPaid, "detWechat")
+							mymqtt.updateAccumulative(mchNo, "Wechat_received", amountToPay)
 			            } else {
 			                VI[mchNo].wechatPaid = VI[mchNo].wechatPaid + amountToPay
 			                VI[mchNo].wechatPaidtmp = VI[mchNo].wechatPaidtmp + amountToPay
@@ -740,7 +752,6 @@ function render (item, mchNo, res, mTR, VI, transId) {
 			                //(mchNo, cp, wp, ep, mp, ap, tc, tw, te, tm, tp, type)
 			                mymqtt.updateMoney(mchNo, 0, 0, VI[mchNo].epayPaidtmp, 0, VI[mchNo].amountPaid, 0, 0, 0, 0, VI[mchNo].totalPaid, "detEpay")
 			                mymqtt.updateAccumulative(mchNo, "Epay_received", amountToPay)
-			                mymqtt.updatetotal(mchNo, "epayPaidtmp", VI[mchNo].epayPaidtmp)
 			            } else {
 			                VI[mchNo].epayPaid = VI[mchNo].epayPaid + amountToPay
 			                VI[mchNo].epayPaidtmp = VI[mchNo].epayPaidtmp + amountToPay
@@ -769,11 +780,15 @@ function render (item, mchNo, res, mTR, VI, transId) {
 			remark = "The payment exceeded RM25";
 			rmapi.refundPayment(transId, item.order.amount, "The payment might be too much, please redo your payment, Thanks.", "FULL")
 		}
-		rpting.createEntry(mchNo, method, transId, item.order.title, amountToPay, item.payee.userId, timeNow, status, remark, mTR)
+		rpting.createEntry(mchNo, method, transID, item.order.title, amountToPay, item.payee.userId, dateNow, timeNow, status, remark, mTR)
 		rpting.save2csv("ePayment",mTR[transId], rpting.uploadNothing, reports_deposit_area)
 	} else {
 		res.render('response', {text:"Thanks"});
 	}
+	transIDdata[transId] = {};
+	transIDdata[transId].done = "Yes";
+	addTransId(transId);
+	setTimeout(deleteTransID, 7200000, transId);
 }
 
 
@@ -791,6 +806,41 @@ function render (item, mchNo, res, mTR, VI, transId) {
 //////////////////////////////
 ///////// API ROUTE //////////
 //////////////////////////////
+function addTransId (id) {
+	let db = new sqlite3.Database('./mydb/laundry.db', sqlite3.OPEN_READWRITE, (err) => {
+		if (err) {
+			console.error(err.message);
+		}
+		console.log('Connected to the laundry database.');
+	});
+	console.log("added transid "+id)
+	//INSERT INTO users(username, password, status) VALUES(?,?,?)
+	let sql = 'INSERT INTO transID(transid) VALUES(?)';
+	let data = [id]
+	db.run(sql, data, function(err, row) {
+		if (err) {
+			return console.error(err.message);
+		}
+	})
+	db.close();
+}
+
+function deleteTransID(id) {
+	delete transIDdata[id];
+	console.log("deleted transid "+id)
+	let db = new sqlite3.Database('./mydb/laundry.db', sqlite3.OPEN_READWRITE, (err) => {
+		if (err) {
+			console.error(err.message);
+		}
+		console.log('Connected to the laundry database.');
+	});
+	let sql = 'DELETE FROM transID WHERE transid = ?';
+	db.run(sql, [id], function(err, row) {
+		if (err) {
+			return console.error(err.message);
+		}
+	})
+}
 
 app.get('/wechat/pay', function(req, res) {
 	console.log("its been called")
@@ -799,11 +849,12 @@ app.get('/wechat/pay', function(req, res) {
 	console.log(req.query.code + " and " + req.query.transactionId)
 	var mchNo = req.query.code
 	var tid = req.query.transactionId
+	var myTransRecord = {}
 	console.log(tid)
-	if (!myTransRecord[tid]) {
-		rmapi.queryTrans(tid, render, res, varItem, myTransRecord, mchNo)
-	} else {
+	if (transIDdata[tid].done == "Yes") {
 		console.log("This transaction has been handled.")
+	} else {
+		rmapi.queryTrans(tid, render, res, varItem, myTransRecord, mchNo)
 	}
 	//res.status(200).send(req.body);
 });
@@ -836,7 +887,7 @@ app.get('/fw/*', function(req, res) {
 
 app.get('/',function(req,res) {
 	//rmapi.queryTrans("181114094527020013647579", render, res, varItem, myTransRecord, "301b33a5742e1a5fc36a572f0126c245")
-	res.render('index', {brand: outlet.brand, outlet: outlet.name});
+	res.render('index', {brand: outlet.brand, outlet: outlet.name, reply: "NA"});
 })
 
 app.post('/login_admin',function(req, res) {
@@ -852,26 +903,22 @@ app.post('/login_user',function(req, res) {
 });
 
 app.post('/manualCut',function(req, res) {
-	console.log(req.body)
+	//console.log(req.body)
 	const viCount = Object.keys(varItem).length;
-	var tmpCoin = 0;
-	var tmpDet = 0;
-	var tmpSoft = 0;
-	var tmpBeg = 0;
+	var myCutOffRecord = {}
 	var count = 0;
 	if (req.session && req.session.authenticated) {
+		cutOffGroup[req.body.group].theStatus = "Submited"
+		mymqtt.updateCutOffGrp(req.body.group, cutOffGroup[req.body.group].cutOffTime, "Submited")
 		Object.keys(varItem).forEach(function(k) {
+			count++;
 			if (varItem[k].group == req.body.group) {
 				var st = varItem[k].cutOffST;
 				var mcN = varItem[k].machineName;
-				console.log(mcN)
-				console.log(varItem[k].cutOffST)
-				console.log(req.body[mcN])
 				cutOffTemp[st][k].submitBy = req.session.username
 				cutOffTemp[st][k].calCoin = req.body[mcN]
 				varItem[k].status = "Submited";
-				cutOffGroup[varItem[k].group].theStatus = "Submited"
-				mymqtt.updateCutOffGrp(varItem[k].group, varItem[k].cutOffST, "Submited")
+				mymqtt.updateCutOfftotal(k, "mystatus", varItem[k].status)
 				if (varItem[k].typeOfMachine == "detergent") {
 					cutOffTemp[st][k].calDet = req.body.det_rcv
 					cutOffTemp[st][k].calSoft = req.body.soft_rcv
@@ -879,18 +926,36 @@ app.post('/manualCut',function(req, res) {
 					//(cutOffR, date, group, tc, cc, td, cd, ts, cs, tb, cb, st, et, cfby, smby)
 					rpting.cutOffReportRecord(myCutOffRecord, st, mcN, cutOffTemp[st][k].cutOffTC, req.body[mcN], cutOffTemp[st][k].cutOffTD, req.body.det_rcv, cutOffTemp[st][k].cutOffTS, req.body.soft_rcv, cutOffTemp[st][k].cutOffTB, req.body.beg_rcv, cutOffTemp[st][k].lastCutoff, st, cutOffTemp[st][k].cutOffBy, cutOffTemp[st][k].submitBy)
 					rpting.save2csv("manualCutOff",myCutOffRecord[mcN][st], rpting.uploadNothing, reports_deposit_area)
+					delete cutOffTemp[st][k]
+					if (isEmpty(cutOffTemp[st])) {
+						delete cutOffTemp[st];
+					}
 				} else {
 					rpting.cutOffReportRecord(myCutOffRecord, st, mcN, cutOffTemp[st][k].cutOffTC, req.body[mcN], 0, 0, 0, 0, 0, 0, cutOffTemp[st][k].lastCutoff, st, cutOffTemp[st][k].cutOffBy, cutOffTemp[st][k].submitBy)
 					rpting.save2csv("manualCutOff",myCutOffRecord[mcN][st], rpting.uploadNothing, reports_deposit_area)
+					delete cutOffTemp[st][k]
+					if (isEmpty(cutOffTemp[st])) {
+						delete cutOffTemp[st];
+					}
 				}
 				console.log(myCutOffRecord[mcN][st])
 			}
+			if (count == viCount) {
+				res.redirect('/manualCutOff')
+			}
 		})
-		res.redirect('/manualCutOff')
 	} else {
 		res.redirect('/');
 	}
 });
+
+function isEmpty(obj) {
+    for(var key in obj) {
+        if(obj.hasOwnProperty(key))
+            return false;
+    }
+    return true;
+}
 
 app.post('/wantCutOff', function(req, res) {
 	var tempjs = [];
@@ -898,24 +963,26 @@ app.post('/wantCutOff', function(req, res) {
 	var count = 0;
 	var vendt = false;
 	if (req.session && req.session.authenticated) {
-		//console.log("Its been called")
-		//onsole.log(req.body)
-		Object.keys(varItem).forEach(function(k) {
-			count++;
-			if (varItem[k].group == req.body.group) {
-				//console.log("matched")
-				var machines = {};
+		if (cutOffGroup[req.body.group].theStatus == "CutOff" || cutOffGroup[req.body.group].theStatus == "NA" ) {
+			Object.keys(varItem).forEach(function(k) {
+				count++;
+				if (varItem[k].group == req.body.group) {
+					//console.log("matched")
+					var machines = {};
 
-				machines.name = varItem[k].machineName;
-				tempjs.push(machines)
-				if (varItem[k].typeOfMachine == "detergent") {
-					vendt = true;
+					machines.name = varItem[k].machineName;
+					tempjs.push(machines)
+					if (varItem[k].typeOfMachine == "detergent") {
+						vendt = true;
+					}
 				}
-			}
-			if (count == viCount) {
-					res.render('cutOffCounting', {grp: req.body.group, mchs: tempjs, cft: cutOffGroup[req.body.group].cutOffTime, vend: vendt})
-			}
-		})
+				if (count == viCount) {
+						res.render('cutOffCounting', {grp: req.body.group, mchs: tempjs, cft: cutOffGroup[req.body.group].cutOffTime, vend: vendt})
+				}
+			})
+		} else {
+			res.redirect('/manualCutOff')
+		}
 	} else {
 		res.redirect('/');
 	}
@@ -928,6 +995,7 @@ app.post('/regroup', function(req, res) {
 	Object.keys(varItem).forEach(function(k) {
 		count++;
 		varItem[k].group = req.body[varItem[k].machineName];
+		mymqtt.updatetotal(k, "mygroup", varItem[k].group)
 		//varItem[k].cutOffST = cutOffGroup[req.body[varItem[k].machineName]].cutOffTime
 		//varItem[k].status = cutOffGroup[req.body[varItem[k].machineName]].theStatus
 		//mymqtt.updateCutOfftotal(k, "startTime", VI[mchNo].cutOffST)
@@ -979,6 +1047,69 @@ app.get('/regroup', function(req, res) {
 	}
 })
 
+app.get('/manageGroup', function(req, res) {
+	const cfgCount = Object.keys(cutOffGroup).length;
+	var count = 0;
+	var groups = []
+	if (req.session && req.session.authenticated) {
+		Object.keys(cutOffGroup).forEach(function(g) {
+			count++;
+			var mygroup = {}
+			mygroup.group = g
+			groups.push(mygroup);
+			if(count == cfgCount) {
+				res.render('manageGroup', {grps: groups})
+			}
+		})
+	} else {
+		res.redirect('/');
+	}
+})
+
+app.post('/deleteGroup', function(req, res) {
+	const viCount = Object.keys(varItem).length;
+	var count = 0;
+	var exist = false;
+	if (req.session && req.session.authenticated) {
+		Object.keys(varItem).forEach(function(k) {
+			count++;
+			if (varItem[k].group == req.body.myGroup) {
+				exist = true
+			}
+			if (count == viCount) {
+				if (exist) {
+					res.render('response', {text: "There are machines used this group, please change it to other group before you delete the group."});
+				} else {
+					delete cutOffGroup[req.body.myGroup];
+					deleteGroup(req.body.myGroup)
+					res.redirect('/manageGroup');
+				}
+			}
+		})
+	} else {
+		res.redirect('/');
+	}
+})
+
+app.post('/addGroup', function(req, res) {
+	const viCount = Object.keys(varItem).length;
+	var count = 0;
+	var exist = false;
+	if (req.session && req.session.authenticated) {
+		if (cutOffGroup[req.body.newGrp]) {
+			res.render('resManual', {text: "This group name was existed, please use another group name. Thanks."});
+		} else {
+			cutOffGroup[req.body.newGrp] = {};
+			cutOffGroup[req.body.newGrp].MyGroup = req.body.newGrp;
+			cutOffGroup[req.body.newGrp].cutOffTime = "NA"
+			cutOffGroup[req.body.newGrp].theStatus = "Submited"
+			addGroup(cutOffGroup[req.body.newGrp]);
+			res.redirect('/manageGroup');
+		}
+	} else {
+		res.redirect('/');
+	}
+})
 
 app.get('/manualCutOff', function(req, res) {
 	if (req.session && req.session.authenticated) {
@@ -1044,34 +1175,41 @@ app.post('/cutOffNow', function(req, res) {
 		const viCount = Object.keys(varItem).length;
 		var count = 0;
 		console.log(timenow)
-		Object.keys(varItem).forEach(function(k) {
-			count++;
-			if (varItem[k].group == req.body.group) {
-				if (cutOffGroup[varItem[k].group].theStatus == "Submited" || cutOffGroup[varItem[k].group].theStatus == "NA" ) {
-					cutOffTemp[timenow] = {}
-					cutOffTemp[timenow][k] = {};
-					cutOffTemp[timenow][k].cutOffBy = req.session.username
-					cutOffTemp[timenow][k].cutOffTC = varItem[k].cutOffTC
-					cutOffTemp[timenow][k].cutOffTD = varItem[k].cutOffTD
-					cutOffTemp[timenow][k].cutOffTS = varItem[k].cutOffTS
-					cutOffTemp[timenow][k].cutOffTB = varItem[k].cutOffTB
-					cutOffTemp[timenow][k].lastCutoff = varItem[k].cutOffST
-					varItem[k].cutOffTC = varItem[k].cutOffTD = varItem[k].cutOffTS = varItem[k].cutOffTB = 0
-					varItem[k].status = "CutOff"
-					varItem[k].cutOffST = timenow;
-					cutOffGroup[varItem[k].group].cutOffTime = timenow;
-					cutOffGroup[varItem[k].group].theStatus = "CutOff"
-					mymqtt.updateCutOffGrp(varItem[k].group, timenow, "CutOff")
-					//(mchNo, stc, tc, std, td, sts, ts, stb, tb, st, lcft, sts, cfby
-					mymqtt.updateCutOfftotalAll(k, cutOffTemp[timenow][k].cutOffTC, 0, cutOffTemp[timenow][k].cutOffTD, 0, cutOffTemp[timenow][k].cutOffTS, 0, cutOffTemp[timenow][k].cutOffTB, 0, timenow, cutOffTemp[timenow][k].lastCutoff, varItem[k].status, cutOffTemp[timenow][k].cutOffBy)
-					console.log(cutOffTemp[timenow][k])
+		if (cutOffGroup[req.body.group].theStatus == "Submited" || cutOffGroup[req.body.group].theStatus == "NA" ) {
+			cutOffGroup[req.body.group].theStatus = "CutOff"
+			cutOffGroup[req.body.group].cutOffTime = timenow;
+			mymqtt.updateCutOffGrp(req.body.group, timenow, "CutOff")
+			Object.keys(varItem).forEach(function(k) {
+				count++;
+				if (varItem[k].group == req.body.group) {
+					if (varItem[k].status == "Submited" || varItem[k].status == "NA" ) {
+						if(!cutOffTemp[timenow]) {
+							cutOffTemp[timenow] = {}
+						}
+						if(!cutOffTemp[timenow][k]) {
+							cutOffTemp[timenow][k] = {};
+						}
+						cutOffTemp[timenow][k].cutOffBy = req.session.username
+						cutOffTemp[timenow][k].cutOffTC = varItem[k].cutOffTC
+						cutOffTemp[timenow][k].cutOffTD = varItem[k].cutOffTD
+						cutOffTemp[timenow][k].cutOffTS = varItem[k].cutOffTS
+						cutOffTemp[timenow][k].cutOffTB = varItem[k].cutOffTB
+						cutOffTemp[timenow][k].lastCutoff = varItem[k].cutOffST
+						varItem[k].cutOffTC = varItem[k].cutOffTD = varItem[k].cutOffTS = varItem[k].cutOffTB = 0
+						varItem[k].status = "CutOff"
+						varItem[k].cutOffST = timenow;
+						//mchNo, stc, tc, std, td, stts, ts, stb, tb, st, lcft, sts, cfby
+						mymqtt.updateCutOfftotalAll(k, cutOffTemp[timenow][k].cutOffTC, 0, cutOffTemp[timenow][k].cutOffTD, 0, cutOffTemp[timenow][k].cutOffTS, 0, cutOffTemp[timenow][k].cutOffTB, 0, timenow, cutOffTemp[timenow][k].lastCutoff, varItem[k].status, cutOffTemp[timenow][k].cutOffBy)
+						//console.log(cutOffTemp[timenow][k])
+					}
 				}
-			}
-			if (count == viCount) {
-				res.redirect('/manualCutOff')
-			}
-		})
-
+				if (count == viCount) {
+					res.redirect('/manualCutOff')
+				}
+			})
+		} else {
+			res.redirect('/manualCutOff')
+		}
 	} else {
 		res.redirect('/');
 	}
@@ -1124,7 +1262,6 @@ app.get('/check_pricing', function(req, res){
 					}
 				}
 			} else if (k.match(/Price/g)) {
-				console.log("its detergent")
 				if (!detHash.type) {
 					detHash.type = "Vending"
 				}
@@ -1213,11 +1350,7 @@ app.post('/delete_user', function(req, res) {
 					return console.error(err.message);
 				}
 				//console.log("data deleted !!")
-				var tmpdata = []
-				Object.keys(varItem).forEach(function(k){
-					tmpdata.push(varItem[k])
-				})
-				res.render('admin_execution',{ url: outlet.url, machines: tmpdata, brand: outlet.brand, outlet: outlet.name});
+				res.redirect('/edit_user');
 			})			
 		})	
 	} else {
@@ -1233,6 +1366,14 @@ app.get('/admin_exec', function(req, res) {
 	res.render('admin_execution',{ url: outlet.url, machines: tmpdata, brand: outlet.brand, outlet: outlet.name});
 })
 
+app.get('/update_fw', function(req, res) {
+	res.render('updateFw', { url: outlet.url, brand: outlet.brand, outlet: outlet.name});
+})
+
+app.get('/encrypt_pw', function(req, res) {
+	res.render('encrypt_password',{ url: outlet.url, brand: outlet.brand, outlet: outlet.name});
+})
+
 app.get('/user_exec', function(req, res) {
 	if (req.session && req.session.authenticated) {
 		var tmpdata = []
@@ -1240,6 +1381,111 @@ app.get('/user_exec', function(req, res) {
 			tmpdata.push(varItem[k])
 		})
 		res.render('execution',{ url: outlet.url, machines: tmpdata, brand: outlet.brand, outlet: outlet.name});
+	} else {
+		res.redirect('/');
+	}
+})
+
+app.get('/stopMonitoring', function(req, res){
+	if (req.session && req.session.authenticated){
+		var tmpdata = []
+		Object.keys(varItem).forEach(function(k){
+			tmpdata.push(varItem[k])
+		})
+		res.render('systemHalt',{ url: outlet.url, machines: tmpdata, brand: outlet.brand, outlet: outlet.name});
+	} else {
+		res.redirect('/');
+	}
+})
+
+app.post('/stopMonitor', function(req, res){
+	var monitoringRecord = {}
+	var timeNow = moment().format("DD/MM/YYYY HH:mm:ss")
+	if (req.session && req.session.authenticated){
+		console.log(req.body)
+		//console.log(req.body.amount)
+		var count = 0;
+		var mchNo = "";
+		var remark = "NA"
+		const length = Object.keys(varItem).length;
+		Object.keys(varItem).forEach(function(key) {
+			if (varItem[key].machineName == req.body.mchName) {
+				//console.log(key);''
+				mchNo = key;
+			}
+			count++
+			if (count == length) {
+				if (!varItem[mchNo].active) {
+					if(req.session.role == "admin") {
+		            	res.render('resManualAdmin', {text: "The machine currently is not online. Please try again later."});
+		            } else {
+		            	res.render('resManual', {text: "The machine currently is not online. Please try again later."});
+		            }
+		        } else {
+	        		varItem[mchNo].check = false;
+	        		mymqtt.updatetotal(mchNo, "checking", varItem[mchNo].check)
+	        		rpting.createMonReport(mchNo, varItem[mchNo].machineName, "Not Monitoring", timeNow, req.body.remark, req.session.username, monitoringRecord)
+	        		rpting.save2csv("controlMon",monitoringRecord[mchNo], rpting.uploadNothing)
+	        		var msg = "This machine "+varItem[mchNo].machineName+" has been stopped from monitoring."
+					res.redirect('stopMonitoring')
+		        }
+				// rpting.recordMonitor(mchNo, "NA", transId, varItem[mchNo].machineName, req.body.amount, req.session.username , timeNow, status, remark, myTransRecord)
+				// //rpting.save2csv("ePayment",myTransRecord[transId], rpting.uploadNothing)
+				// rpting.save2csv("manualPay",myTransRecord[transId], rpting.uploadNothing, reports_deposit_area)
+				//res.status(200).send("paid")
+			}
+		})
+	} else {
+		res.redirect('/');
+	}
+})
+
+app.post('/startMonitor', function(req, res){
+	var monitoringRecord = {}
+	var timeNow = moment().format("DD/MM/YYYY HH:mm:ss")
+	if (req.session && req.session.authenticated){
+		console.log(req.body)
+		//console.log(req.body.amount)
+		var count = 0;
+		var mchNo = "";
+		var remark = "NA"
+		const length = Object.keys(varItem).length;
+		Object.keys(varItem).forEach(function(key) {
+			if (varItem[key].machineName == req.body.mchName) {
+				//console.log(key);''
+				mchNo = key;
+			}
+			count++
+			if (count == length) {
+				if (!varItem[mchNo].active) {
+					if(req.session.role == "admin") {
+		            	res.render('resManualAdmin', {text: "The machine currently is not online. Please try again later."});
+		            } else {
+		            	res.render('resManual', {text: "The machine currently is not online. Please try again later."});
+		            }
+		        } else {
+	        		if(varItem[mchNo].check == false) {
+	        			varItem[mchNo].check = true;
+	        			mymqtt.updatetotal(mchNo, "checking", varItem[mchNo].check)
+	        			//createMonReport = function (mchCode, title, sts, time, remark, user,cMR){
+	        			rpting.createMonReport(mchNo, varItem[mchNo].machineName, "Monitoring", timeNow, req.body.remark, req.session.username, monitoringRecord)
+	        			rpting.save2csv("controlMon",monitoringRecord[mchNo], rpting.uploadNothing)
+	        			var msg = "This machine "+varItem[mchNo].machineName+" is under monitoring now."
+	        		} else {
+	        			var msg = "This machine "+varItem[mchNo].machineName+" is already under monitoring now."
+	        		}
+					if(req.session.role == "admin") {
+						res.render('resManualAdmin', {text: msg});
+					} else {
+						res.render('resManual', {text: msg});
+					}
+		        }
+				// rpting.recordMonitor(mchNo, "NA", transId, varItem[mchNo].machineName, req.body.amount, req.session.username , timeNow, status, remark, myTransRecord)
+				// //rpting.save2csv("ePayment",myTransRecord[transId], rpting.uploadNothing)
+				// rpting.save2csv("manualPay",myTransRecord[transId], rpting.uploadNothing, reports_deposit_area)
+				//res.status(200).send("paid")
+			}
+		})
 	} else {
 		res.redirect('/');
 	}
@@ -1320,11 +1566,12 @@ app.post('/register_user', function(req, res) {
 	});	
 	db.serialize(function() {
 		let sql = 'INSERT INTO users(username, password, status) VALUES(?,?,?)';
-		db.run(sql, [req.body.username, req.body.password, "Inactive"], function(err) {
+		var password_md5 = crypto.createHash('md5').update(req.body.password).digest('hex');
+		db.run(sql, [req.body.username, password_md5, "Inactive"], function(err) {
 			if (err) {
 				return console.error(err.message);
 			}
-			res.redirect('/user_login');
+			res.render('index', {brand: outlet.brand, outlet: outlet.name, reply: "NA"})
 		})
 	})
 })
@@ -1357,13 +1604,15 @@ app.post('/chg_password_user', function(req, res) {
 			//console.log(req.session.username)
 			db.get(sql, [req.session.username], function(err, row) {
 				console.log(row)
-				if(req.body.oripassword == row.pw) {
+				var oripassword_md5 = crypto.createHash('md5').update(req.body.oripassword).digest('hex');
+                var newpassword_md5 = crypto.createHash('md5').update(req.body.newpassword).digest('hex');
+				if(oripassword_md5 == row.pw) {
 					let sql2 = 'UPDATE users SET password = ? WHERE username = ?';
-					db.run(sql2, [req.body.newpassword, req.session.username], function(err) {
+					db.run(sql2, [newpassword_md5, req.session.username], function(err) {
 						if (err) {
 							return console.error(err.message);
 						}
-						res.redirect('/user_login');
+						res.render('index', {brand: outlet.brand, outlet: outlet.name, reply: "NA"})
 					})
 				} else {
 					res.render('response', {text: "The original password key in is incorrect!"});
@@ -1388,13 +1637,15 @@ app.post('/chg_password_admin', function(req, res) {
 			//console.log(req.session.username)
 			db.get(sql, [req.session.username], function(err, row) {
 				console.log(row)
-				if(req.body.oripassword == row.pw) {
+				var oripassword_md5 = crypto.createHash('md5').update(req.body.oripassword).digest('hex');
+                var newpassword_md5 = crypto.createHash('md5').update(req.body.newpassword).digest('hex');
+				if(oripassword_md5 == row.pw) {
 					let sql2 = 'UPDATE admin SET password = ? WHERE username = ?';
-					db.run(sql2, [req.body.newpassword, req.session.username], function(err) {
+					db.run(sql2, [newpassword_md5, req.session.username], function(err) {
 						if (err) {
 							return console.error(err.message);
 						}
-						res.redirect('/admin');
+						res.render('index', {brand: outlet.brand, outlet: outlet.name, reply: "NA"})
 					})
 				} else {
 					res.render('response', {text: "The original password key in is incorrect!"});
@@ -1406,14 +1657,75 @@ app.post('/chg_password_admin', function(req, res) {
 	}
 })
 
+app.post('/encrypt_pw_md5', function(req, res) {
+	if (req.session && req.session.authenticated){
+		let db = new sqlite3.Database('./mydb/laundry.db', sqlite3.OPEN_READWRITE, (err) => {
+			if (err) {
+				console.error(err.message);
+			}
+			console.log('Connected to the laundry database.');
+		});	
+		db.serialize(function() {
+			let sql = 'SELECT * FROM users';
+            let sql_admin = 'SELECT * FROM admin';
+			//console.log(req.session.username)
+			db.all(sql, function(err, rows) {
+                rows.forEach(function(row){
+                    //console.log(row);
+                    if(row.password.length != 32){
+                        var username = row.username;
+                        var password = row.password;
+                        var password_md5 = crypto.createHash('md5').update(password).digest('hex');
+                        
+                        let sql2 = 'UPDATE users SET password = ? WHERE username = ?';
+                        db.run(sql2, [password_md5, username], function(err) {
+                            if (err) {
+                                return console.error(err.message);
+                            }
+                        })
+                    } else{
+                        console.log("skip");
+                    }
+                });
+                console.log("Password Encryped!");
+			})
+            db.all(sql_admin, function(err, rows) {
+                rows.forEach(function(row){
+                    //console.log(row);
+                    if(row.password.length != 32){
+                        var username = row.username;
+                        var password = row.password;
+                        var password_md5 = crypto.createHash('md5').update(password).digest('hex');
+                        
+                        let sql_admin2 = 'UPDATE admin SET password = ? WHERE username = ?';
+                        db.run(sql_admin2, [password_md5, username], function(err) {
+                            if (err) {
+                                return console.error(err.message);
+                            }
+                        })
+                    } else{
+                        console.log("skip");
+                    }
+                });
+                console.log("Password Encryped!");
+			})
+            res.redirect('update_fw');
+		})
+	} else {
+		res.redirect('/');
+	}
+})
+
 app.post('/manual_turnOn', function(req, res){
-	var timeNow = moment().format("DD/MM/YYYY HH:mm:ss")
+	var timeNow = moment().format("HH:mm:ss")
+	var dateNow = moment().format("DD/MM/YYYY")
+	var manualPayRecord = {}
 	if (req.session && req.session.authenticated){
 		//console.log(req.body.mchName)
 		//console.log(req.body.amount)
 		var count = 0;
 		var mchNo = "";
-		var transId = rmapi.makeid();
+		var transId = "'" + rmapi.makeid();
 		var remark = "NA"
 		const length = Object.keys(varItem).length;
 		Object.keys(varItem).forEach(function(key) {
@@ -1454,9 +1766,9 @@ app.post('/manual_turnOn', function(req, res){
 					status = "FAILED"
 					remark = "Machine not online, manual payment cannot be done."
 		        }
-				rpting.createEntry(mchNo, "NA", transId, varItem[mchNo].machineName, req.body.amount, req.session.username , timeNow, status, remark, myTransRecord)
+				rpting.createEntry(mchNo, "NA", transId, varItem[mchNo].machineName, req.body.amount, req.session.username , dateNow, timeNow, status, remark, manualPayRecord)
 				//rpting.save2csv("ePayment",myTransRecord[transId], rpting.uploadNothing)
-				rpting.save2csv("manualPay",myTransRecord[transId], rpting.uploadNothing, reports_deposit_area)
+				rpting.save2csv("manualPay",manualPayRecord[transId], rpting.uploadNothing, reports_deposit_area)
 				//res.status(200).send("paid")
 			}
 		})
@@ -1564,14 +1876,6 @@ app.post('/update_pricing', function(req, res) {
 	}
 });
 
-app.get('/admin', (req,res) => {
-	res.render('login_admin', {brand: outlet.brand, message: ""});
-});
-
-app.get('/user_login', function(req, res) {
-	res.render('login_user', {brand: outlet.brand, message: ""});
-});
-
 app.get('/logout', function(req, res, next) {
 	  if (req.session) {
 		req.session.destroy(function(err) {
@@ -1634,22 +1938,18 @@ app.post("/webhooks/misc", function (req, res) {
 app.post('/pingme', function(req,res) {
 	if (req.body.Online == "Yes") {
     	console.log("Its been called by Pinger")
-		if (outlet.name == "SP") {      
-            noPing = 0;
+		if (outlet.name == "SP" || outlet.name == "PJ21") {
+			noPing = 0;
 			clearTimeout(timeoutHandle);
-        	timeoutHandle = setTimeout(dropped, 360000);
+			timeoutHandle = setTimeout(dropped, 360000);
 		}
 	}
 	var msg = {"status": "Online"};
 	res.send(msg)
 })
 
-
-function dropped() {    
+function dropped() {
 	noPing = 1;
-}
-if (outlet.name == "SP") {
-        var timeoutHandle = setTimeout(dropped, 360000);
 }
 
 function deploy(res){
@@ -1678,6 +1978,106 @@ function transMisc(res){
         }
         //return res.status(200).send('OK');
     });
+}
+
+function backupReports(){
+	var today = moment().format("DD_MM_YYYY");
+	var S7daysAgo = moment().subtract(7,'days').format("DD_MM_YYYY")
+	var todayReportPath = "backup/"+today;
+	var oldReportPath = "backup/"+S7daysAgo;
+	var backupFolder = "backup"
+	if (!fs.existsSync(backupFolder)) {
+		childProcess.exec('mkdir backup', function(err, stdout, stderr){
+		    if (err) {
+		            console.error(err);
+		            //return res.status(500).send('Internal Server Error');
+		    }
+		    console.log("Create backup folder")
+		    //return res.status(200).send('OK');
+		});
+	}
+	if (!fs.existsSync(todayReportPath)) {
+		childProcess.exec('mkdir backup/'+today+' && cp -f -r reports backup/'+today, function(err, stdout, stderr){
+		    if (err) {
+		            console.error(err);
+		            //return res.status(500).send('Internal Server Error');
+		    }
+		    console.log("Backup the reports")
+		    //return res.status(200).send('OK');
+		});
+	}
+    if (fs.existsSync(oldReportPath)) {
+    	childProcess.exec('rm -f -r backup/'+S7daysAgo, function(err, stdout, stderr){
+		    if (err) {
+		            console.error(err);
+		            //return res.status(500).send('Internal Server Error');
+		    }
+		    console.log("Deleted reports on 7 days ago " + S7daysAgo);
+		    //return res.status(200).send('OK');
+		});
+	}
+}
+
+function backupMonthlyReport(){
+	var lastMonth = moment().subtract(1,'days').format("MMMM");
+	var thisYear = moment().format("YYYY");
+	var yearEnd = false;
+	var ytdYear = moment().subtract(1,'days').format("YYYY");
+	if (ytdYear != thisYear) {
+		thisYear = ytdYear
+		yearEnd = true;
+	}
+	var thisMonthReportPath = "backup/"+ thisYear+'/'+lastMonth;
+	var backupFolder = "backup"
+	var thisYearFolder = "backup/"+ thisYear;
+	if (!fs.existsSync(backupFolder)) {
+		childProcess.exec('mkdir backup', function(err, stdout, stderr){
+		    if (err) {
+		            console.error(err);
+		            //return res.status(500).send('Internal Server Error');
+		    }
+		    console.log("Creating backup folder")
+		    //return res.status(200).send('OK');
+		});
+	}
+	if (!fs.existsSync(thisYearFolder) && !yearEnd) {
+		childProcess.exec('mkdir '+thisYearFolder+ ' && cp -f reports/*'+thisYear+'* '+ thisYearFolder, function(err, stdout, stderr){
+		    if (err) {
+		            console.error(err);
+		            //return res.status(500).send('Internal Server Error');
+		    }
+		    console.log("Create this Year folder and Copy Yearly reports")
+		    //return res.status(200).send('OK');
+		});
+	} else if (fs.existsSync(thisYearFolder) && !yearEnd) {
+		childProcess.exec('cp -f reports/*'+thisYear+'* '+ thisYearFolder, function(err, stdout, stderr){
+		    if (err) {
+		            console.error(err);
+		            //return res.status(500).send('Internal Server Error');
+		    }
+		    console.log("Copy Yearly Reports")
+		    //return res.status(200).send('OK');
+		});
+	} else if (fs.existsSync(thisYearFolder) && yearEnd) {
+		childProcess.exec('mv -f reports/*'+thisYear+'* '+ thisYearFolder, function(err, stdout, stderr){
+		    if (err) {
+		            console.error(err);
+		            //return res.status(500).send('Internal Server Error');
+		    }
+		    console.log("Move Yearly Reports")
+		    //return res.status(200).send('OK');
+		});
+	}
+	if (!fs.existsSync(thisMonthReportPath)) {
+		childProcess.exec('mkdir '+thisMonthReportPath+' && mv -f reports/*'+lastMonth+'* '+thisMonthReportPath, function(err, stdout, stderr){
+		    if (err) {
+		            console.error(err);
+		            //return res.status(500).send('Internal Server Error');
+		    }
+		    console.log("Backup monthly reports")
+		    //return res.status(200).send('OK');
+		});
+	}
 }
 
 function checkFlag() {

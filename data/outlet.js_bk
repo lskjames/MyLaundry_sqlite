@@ -15,6 +15,8 @@ module.exports = {
 	begPrice: 2,
 	email: "ptutm.jameslsk@gmail.com",
 	gmailpw: "Callmekoka@008",
+	ghusn: "lskjames",
+	host: "pjs5.dyndns.org",
 	ftpUser: "antlytics",
 	ftpPw:"ant1187",
 	clientID: "6188382817688918679",

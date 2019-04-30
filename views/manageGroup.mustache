@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+		<link href="https://unpkg.com/tabulator-tables@4.1.2/dist/css/tabulator.min.css" rel="stylesheet">
+		<script type="text/javascript" src="https://unpkg.com/tabulator-tables@4.1.2/dist/js/tabulator.min.js"></script>
+		<title>{{brand}} Laundry</title>
+		<style>
+			#TableFont{
+				width:40%;
+			}
+			@media only screen and (max-width: 320px) {
+  				/* For mobile phones: */
+  				#TableFont{
+    				width:100%;
+  				}
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Navbar (sit on top) -->
+		<div class="w3-top">
+		  	<div class="w3-bar w3-white w3-padding w3-card">
+		    	<div class="w3-margin-left">
+		    		<div class="w3-dropdown-hover">
+		    			<button class="w3-button">Menu</button>
+		    			<div class="w3-dropdown-content w3-bar-block" >
+		    				<a href="/user_exec" method="get" class="w3-bar-item w3-button">Home</a>
+		    				<a href="/chg_password_user" method="get" class="w3-bar-item w3-button">Change Password</a>
+		    				<a href="/manualCutOff" method="get" class="w3-bar-item w3-button">CutOff Counting</a>
+		    				<a href="/regroup" method="get" class="w3-bar-item w3-button">Rearrange group</a>
+		    				<a href="/stopMonitoring" method="get" class="w3-bar-item w3-button">Monitoring</a>
+		    			</div>
+		    		</div>
+		    		<div class="w3-right">
+		    			<a href="/logout" method="get" class="w3-bar-item w3-button"><b>Log Out</b></a>
+		    		</div>
+		    	<!-- Float links to the right. Hide them on small screens -->
+		  		</div>
+			</div>
+		</div>
+		<header class="w3-display-container w3-content w3-center w3-margin" style="max-width:1500px; padding-top:74px;" id="home">
+		  <img href="/" method="get" class="w3-image" src="images/otouch.png" alt="Architecture" width="1500" height="800">
+		</header>
+		<div class="w3-container w3-padding-large w3-pale-yellow">
+			<h3>Manage Group</h3>
+			<div class="w3-section w3-centered">
+				<form action="/deleteGroup" method="post" onsubmit="return confirm('Do you confirm want to delete this group ?')">
+					<button type="submit">Delete Group</button>
+					<select id="selectField" name="myGroup">
+						{{#grps}}
+	        				<option name="myGroup" value={{group}}>{{group}}</option>
+	        			{{/grps}}
+	        		</select>
+	        	</form>
+	        </div>
+	        <div class="w3-section w3-centered">
+	        	<form action="/addGroup" method="post">
+					<button type="submit">Add Group</button>
+					<input type="text" name="newGrp" required>
+	        	</form>
+			</div>
+		</div>
+	</body>
+</html>

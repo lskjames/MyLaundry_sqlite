@@ -1,0 +1,196 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+		<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.19/css/jquery.dataTables.css">
+		<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.js"></script>
+		<style>
+			.dotgreen {
+			  height: 25px;
+			  width: 25px;
+			  background-color: #008000;
+			  border-radius: 50%;
+			  display: inline-block;
+			}
+			.dotred {
+			  height: 25px;
+			  width: 25px;
+			  background-color: #FF0000;
+			  border-radius: 50%;
+			  display: inline-block;
+			}
+			.dotblue {
+			  height: 25px;
+			  width: 25px;
+			  background-color: #00FFFF;
+			  border-radius: 50%;
+			  display: inline-block;
+			}
+			/* Button used to open the contact form - fixed at the bottom of the page */
+			.open-button {
+			  background-color: #555;
+			  color: white;
+			  border: none;
+			  cursor: pointer;
+			  opacity: 0.8;
+			}
+
+			/* The popup form - hidden by default */
+			.form-popup {
+			  display:none;
+			  right: 15px;
+			  border: 3px solid #f1f1f1;
+			  z-index: 9;
+			}
+
+			/* Add styles to the form container */
+			.form-container {
+			  max-width: 300px;
+			  padding: 10px;
+			  background-color: white;
+			}
+
+			/* Full-width input fields */
+			.form-container input[type=text], .form-container input[type=password] {
+			  width: 100%;
+			  padding: 15px;
+			  margin: 5px 0 22px 0;
+			  border: none;
+			  background: #f1f1f1;
+			}
+
+			/* When the inputs get focus, do something */
+			.form-container input[type=text]:focus, .form-container input[type=password]:focus {
+			  background-color: #ddd;
+			  outline: none;
+			}
+			/* Set a style for the submit/login button */
+			.form-container .btn {
+			  background-color: #4CAF50;
+			  color: white;
+			  padding: 16px 20px;
+			  border: none;
+			  cursor: pointer;
+			  width: 100%;
+			  margin-bottom:10px;
+			  opacity: 0.8;
+			}
+
+			/* Add a red background color to the cancel button */
+			.form-container .cancel {
+			  background-color: red;
+			}
+
+			/* Add some hover effects to buttons */
+			.form-container .btn:hover, .open-button:hover {
+			  opacity: 1;
+			}
+		</style>
+		<title>{{brand}} Laundry</title>
+	</head>
+	<body>
+		<!-- Navbar (sit on top) -->
+		<<div class="w3-top">
+		  	<div class="w3-bar w3-white w3-padding w3-card">
+		    	<div class="w3-margin-left">
+		    		<div class="w3-dropdown-hover">
+		    			<button class="w3-button">Menu</button>
+		    			<div class="w3-dropdown-content w3-bar-block" >
+		    				<a href="/user_exec" method="get" class="w3-bar-item w3-button">Home</a>
+		    				<a href="/chg_password_user" method="get" class="w3-bar-item w3-button">Change Password</a>
+		    				<a href="/manualCutOff" method="get" class="w3-bar-item w3-button">CutOff Counting</a>
+		    				<a href="/regroup" method="get" class="w3-bar-item w3-button">Rearrange group</a>
+		    				<a href="/manageGroup" method="get" class="w3-bar-item w3-button">Manage Group</a>
+		    			</div>
+		    		</div>
+		    		<div class="w3-right">
+		    			<a href="/logout" method="get" class="w3-bar-item w3-button"><b>Log Out</b></a>
+		    		</div>
+		    	<!-- Float links to the right. Hide them on small screens -->
+		  		</div>
+			</div>
+		</div>
+		<header class="w3-display-container w3-content w3-center w3-margin" style="max-width:1500px; padding-top:74px;" id="home">
+		  <img href="/" method="get" class="w3-image" src="http://www.otouch.com.my/sitebuilder/images/ot3-673x123.png" alt="Architecture" width="1500" height="800">
+		</header>
+		<div class="w3-container w3-padding-large w3-pale-yellow">
+			<h3>Monitoring control on the Machines in {{outlet}}</3>
+			<div class="w3-section">
+				<form action="/stopMonitor" method="post">
+					<div class="w3-section">
+						<label for="mchName">Select the machines</label>
+						<select name="mchName"> 
+							{{#machines}}
+								<option value={{machineName}}>{{machineName}}</option>
+							{{/machines}}
+						</select>
+					</div>
+					<label for="remark">Remark : </label>
+				    <input type="text" placeholder="Remark" name="remark" required><br>
+				    <button formaction="/stopMonitor" type="submit" class="w3-button w3-black w3-margin-bottom">Stop</button>
+		      		<button formaction="/startMonitor" method="post" type="submit" class="w3-button w3-black w3-margin-bottom"></i>Start</button>
+				</form>
+			</div>
+			</div class="w3-section w3-centered">
+				<br>
+				&nbsp; &nbsp;<span class="dotgreen"></span> On Monitoring &nbsp;<span class="dotred"></span> Not Monitoring
+				<br>
+				<br>
+			</div>
+			<table id="example-table" class="cell-border w3-centered compact stripe" width="100%"></table>
+		</div>
+		
+  		<script src="/socket.io/socket.io.js"></script>
+		<script src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js"></script>
+		<script>
+			var socket = io.connect('http://localhost:80');
+			$(document).ready(function() {
+				table = $('#example-table').DataTable( {
+					searching: false,
+					paging: false,
+			        data: "",
+			        columns: [
+			            {title: "Machine Name", data:"machineName"},
+				    	{title: "OnMonitor", data:"check"},
+			        ]
+			    });
+			    socket.on("devices", function (data) {
+	  				if (data) {
+	  					table.destroy();
+	  					table = $('#example-table').DataTable( {
+	  						searching: false,
+	  						paging: false,
+					        data: data,
+					        order: [],
+					        columns: [
+					            {title: "Machine Name", data:"machineName"},
+						    	{title: "OnMonitor", data:"check", render: function (data, type, row) {
+						    		if (data == "On") {
+						    			return '<span class="dotgreen"></span>'
+						    		} else if (data == "Off") {
+						    			return '<span class="dotred"></span>'
+						    		}
+						    	}},
+					        ]
+					    });
+	  				}
+	  			});
+			});
+		</script>
+		<script>
+			function openForm() {
+			  document.getElementById("myForm").style.display = "block";
+			  document.getElementById("mybutton").style.display = "none";
+			}
+
+			function closeForm() {
+			  document.getElementById("myForm").style.display = "none";
+			  document.getElementById("mybutton").style.display = "block";
+			}
+		</script>
+	</body>
+	
+</html>

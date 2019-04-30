@@ -14,19 +14,21 @@ const ftp_Coinop_report = ftp_deposit_area + "/Coinop_Sales"
 const ftp_det_report = ftp_deposit_area + "/Detergent"
 const ftp_log_report = ftp_deposit_area + "/Log"
 const ftp_cross_outlet = '/Data/' + 'cross_outlets'
-const uploadMode = "Google"
+const mode = "Test"
+const uploadMode = "NA"
+
 if (uploadMode == "FTP") {
 	reports_deposit_area = ftp_deposit_area
 	cross_outlet_folder = ftp_cross_outlet
 }
-var nodemailer = require('nodemailer'); 
+var nodemailer = require('nodemailer');
 var transporter = nodemailer.createTransport({
 	host: 'smtp.gmail.com',
     port: 465,
     secure: true, // use SSL
 	auth:{
-		user: 'test@gmail.com',
-		pass: 'testing12345'
+		user: outlet.email,
+		pass: outlet.gmailpw
 	}
 });
 
@@ -39,7 +41,6 @@ if (outlet.name == "PJCC") {
 var sumRunRecord = {}
 var sumSalesRecord = {}
 var sumSalesByType = {}
-var myTransRecord = {}
 var sumRunU2D = {}
 var sumDetDaily = {}
 var sumDetMonthly = []
@@ -64,9 +65,10 @@ let db = new sqlite3.Database('./mydb/laundry.db', sqlite3.OPEN_READWRITE, (err)
   }
   console.log('Connected to the laundry database.');
 });
+
 var newLine = "\r\n";
-var myfields = ['title', 'method', 'amount', 'createAt', 'status', 'remark', 'machineCode','transId', 'payeeId']
-var fields1 = ['title', 'amount', 'payeeId', 'createAt', 'status', 'remark', 'machineCode','transId']
+var myfields = ['title', 'method', 'amount', 'date', 'time', 'status', 'remark', 'machineCode','transId', 'payeeId']
+var fields1 = ['title', 'amount', 'payeeId', 'date', 'time', 'status', 'remark', 'machineCode','transId']
 var fields2 = ['no', 'name', 'side', 'runTime', 'Coin_received', 'Wechat_received', 'Epay_received', 'Manual_payment', 'Detergent', 'Softener', 'LB', 'status','date', 'startTime', 'endTime', 'machine']
 var fields3 = ['Title', 'TotalCoin', 'TotalWechat', 'TotalEpay', 'TotalManual', 'TotalRun', 'NoColdRun', 'NoWarmRun', 'NoHotRun', 'NoOtherRun','ActualTotalRunTime','ActualTotalRunTimeTop', 'ActualTotalRunTimeBot', 'ExpectedTotalRunTime', 'myDate']
 var fields4 = ['mydate']
@@ -82,7 +84,6 @@ fields4.push("gte")
 fields4.push("gtc")
 fields4.push("gtp")
 var fields5 = ['date']
-//var fields5 = ['W9kgC', 'W9kgW', 'W9kgT', 'W14kgC', 'W14kgW', 'W14kgT', 'DryC', 'DryW', 'DryT', 'DetC', 'DetW', 'DetT', 'date']
 var fields6 = ['Title', 'Wechat_received', 'Epay_received', 'Coin_received', 'Total_Run', 'No_Cold_Run','No_Warm_Run', 'No_Hot_Run', 'No_Other_Run', 'Actual_Total_Run_Time_Top','Actual_Total_Run_Time_Bot','Actual_Total_Run_Time', 'Expected_Total_Run_Time', 'Total_Det', 'Total_Soft', 'Total_LB', 'machineCode', 'Date']
 var fields7 = ['mydate']
 Object.keys(myVI).forEach(function(k){
@@ -104,6 +105,7 @@ var header8 = ['Type', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'Aug',
 var h8print = header8.toString() + newLine
 var fields9 = ['Outlet', 'Detergent_Unit', 'Detergent_Sales', 'Softener_Unit', 'Softener_Sales', 'LB_Unit', 'LB_Sales']
 var fields10 = ['Machines', 'Last_CutOff_Time', 'Current_CutOff_Time', 'Coin_Collected', 'Actual_Coin_Counted', 'Detergent_Unit_Received', 'Detergent_Unit_Counted', 'Softener_Unit_Received', 'Softener_Unit_Counted', 'Beg_Unit_Received', 'Beg_Unit_Counted', 'CutOff_by', 'Submit_by']
+var fields11 = ['title', 'time', 'status', 'remark', 'machineCode','User']
 var header5_1 = [""]
 var header5_2 = ["Date"]
 var tmpVerify = {}
@@ -301,6 +303,8 @@ const detMonthlyAllCreate = new json2csvParser({fields: fields8});
 const detMonthlyAllAppend = new json2csvParser({fields: fields8, header: false});
 const cutOffReportCreate = new json2csvParser({fields: fields10});
 const cutOffReportAppend = new json2csvParser({fields: fields10, header: false});
+const controlMonCreate = new json2csvParser({fields: fields11});
+const controlMonAppend = new json2csvParser({fields: fields11, header: false});
 
 const ePaymentCsv = "./reports/Epayment_Trans_" + outlet.name 
 const manualPayCsv = "./reports/Manual_Payment_" + outlet.name
@@ -311,6 +315,7 @@ const sumSalesTp = "./reports/DailySum_SalesByType_" + outlet.name
 const sumRunUp2date = "./reports/SumRun_Up2Date_" + outlet.name
 const sumDetSnU = "./reports/DailyDet_SalesUnit_" + outlet.name
 const cutOffRpt= "./reports/Manual_CutOff_Report_" + outlet.name
+const ctrlMntrRpt = "./reports/Monitoring_record_" + outlet.name
 
 var detMonthly = "./reports/Det_SalesUnit_" + outlet.name
 var crossOutletMonthly = "./reports/crossOutletDet_" + outlet.name 
@@ -352,6 +357,15 @@ module.exports.scheduleE = function () {
 	}
 }
 
+module.exports.scheduleZ = function() {
+	var ytd = moment().subtract(1,'days').format("DD/MM/YYYY")
+	delete sumSalesRecord[ytd];
+	console.log(sumSalesRecord)
+	delete sumSalesByType[ytd];
+	console.log(sumSalesByType)
+	delete sumDetDaily[ytd];
+	console.log(sumDetDaily)
+}
 
 /////////// update the monthly detergent sales unit for this branch //////
 module.exports.scheduleA = function (VI) {
@@ -422,12 +436,11 @@ module.exports.scheduleB = function () {
 	const pjcc_det_json = "./cross_outlet_data/pjcc_det_"+month+".json"
 	var pj21 = "pj21_det_" + month + ".json"
 	var sp = "sp_det_" + month + ".json"
-	
 	if (uploadMode == "Google") {
 		fs.readFile('./credentials/credentials.json', (err, content) => {
   			if (err) return console.log('Error loading client secret file:', err);
-  			//googleapi.download(JSON.parse(content), googleapi.downloadFiles, pj21_det_json, pj21, cross_outlet_folder)
-  			//googleapi.download(JSON.parse(content), googleapi.downloadFiles, sp_det_json, sp, cross_outlet_folder)
+  			googleapi.download(JSON.parse(content), googleapi.downloadFiles, pj21_det_json, pj21, cross_outlet_folder)
+  			googleapi.download(JSON.parse(content), googleapi.downloadFiles, sp_det_json, sp, cross_outlet_folder)
   		})
   	} else if (uploadMode == "FTP") {
 		setTimeout(function () {
@@ -449,14 +462,14 @@ module.exports.scheduleB = function () {
 		}
 		if (!spExist) {
 			if (uploadMode == "Google") {
-				//googleapi.download(JSON.parse(content), googleapi.downloadFiles, sp_det_json, sp, cross_outlet_folder)
+				googleapi.download(JSON.parse(content), googleapi.downloadFiles, sp_det_json, sp, cross_outlet_folder)
 			} else if (uploadMode == "FTP") {
 				exports.downloadFilesFTP(sp_det_json, sp, cross_outlet_folder)
 			}
 		}
 		if (!pj21Exist) {
 			if (uploadMode == "Google") {
-				//googleapi.download(JSON.parse(content), googleapi.downloadFiles, pj21_det_json, pj21, cross_outlet_folder)
+				googleapi.download(JSON.parse(content), googleapi.downloadFiles, pj21_det_json, pj21, cross_outlet_folder)
 			} else if (uploadMode == "FTP") {
 				exports.downloadFilesFTP(pj21_det_json, pj21, cross_outlet_folder) 
 			}
@@ -464,7 +477,7 @@ module.exports.scheduleB = function () {
 		if (checkCount == 5) {
 			clearInterval(check);
 			var mailOptions = {
-				from: 'ptutm.jameslsk@gmail.com',
+				from: outlet.email,
 				to: 'jamesleesukey@gmail.com',
 				subject: 'There are reports not able to sync down, Please check',
 				text: "pjcc file "+pjccExist+" pj21 file "+pj21Exist+" sp file "+spExist
@@ -743,7 +756,9 @@ function saveDaily() {
 	const csvPath = "./reports/devices_disconnection"+"_"+thisMonth+".csv";
 	const csvName = "devices_disconnection"+"_"+thisMonth+".csv";
 	const cFRname = "Manual_CutOff_Report_"+outlet.name+"_"+thisMonth+".csv"
+	const ctrlMntrName = "Monitoring_record_"+outlet.name+"_"+thisMonth+".csv";
 	const cFRCsvPath = cutOffRpt +"_"+thisMonth+".csv";
+	const ctrlMntrPath = ctrlMntrRpt+"_"+thisMonth+".csv";
 
 	if (fs.existsSync(detSum)) {
 		//console.log("check")
@@ -831,7 +846,24 @@ function saveDaily() {
 			}	
 		}, 5000);
 	}
-
+	if (!fs.existsSync(ctrlMntrPath)) {
+		var data = {}
+		setTimeout(function () {
+			if (uploadMode == "Google") {
+				exports.save2csv("controlMon", data, exports.upload2GD, reports_deposit_area);
+			} else if (uploadMode == "FTP") {
+				exports.save2csv("controlMon", data, exports.uploadFilesFTP, ftp_log_report)
+			}	
+		}, 5000);
+	} else {
+		setTimeout(function () {
+			if (uploadMode == "Google") {
+				exports.upload2GD(ctrlMntrPath, ctrlMntrName, reports_deposit_area)
+			} else if (uploadMode == "FTP") {
+				exports.uploadFilesFTP(ctrlMntrPath, ctrlMntrName, ftp_log_report)
+			}	
+		}, 5000);
+	}
 };
 
 // Load up the previous up2date data from the sqlite database 
@@ -1057,7 +1089,6 @@ function updateDailyData (VI, callback) {
 						})
 					}, 3000);
 				}
-
 			});
 		});
 	});
@@ -1087,7 +1118,7 @@ function updateTotalAllByType (key, type, value) {
 	  			//console.log("up2date data has been updated")
 			});
 		})
-	})	
+	})
 }
 
 function updateTotalAll (myVI, mchCode, Cvalue, Wvalue, Evalue, Mvalue, Dvalue, Svalue, Bvalue, allODet) {
@@ -1454,7 +1485,7 @@ function updateUp2Date (VI, sumru2d) {
 //// Saving all the data into the JSON objects /////
 ////////////////////////////////////////////////////
 
-module.exports.createEntry = function (mchCode, mtd, transId, title, amount, payeeId, createAt, status, remark, mTR){
+module.exports.createEntry = function (mchCode, mtd, transId, title, amount, payeeId, date, time, status, remark, mTR){
 	mTR[transId] = {};
 	mTR[transId].method = mtd;
 	mTR[transId].transId = transId;
@@ -1462,9 +1493,19 @@ module.exports.createEntry = function (mchCode, mtd, transId, title, amount, pay
 	mTR[transId].title = title;
 	mTR[transId].amount = amount;
 	mTR[transId].payeeId = payeeId;
-	mTR[transId].createAt = createAt; 
+	mTR[transId].time = time;
+	mTR[transId].date = date;
 	mTR[transId].status = status;
 	mTR[transId].remark = remark;
+}
+//['title', 'time', 'status', 'remark', 'machineCode','User']
+module.exports.createMonReport = function (mchCode, title, sts, time, remark, user,cMR){
+	cMR[mchCode] = {};
+	cMR[mchCode].title = title;
+	cMR[mchCode].time = time;
+	cMR[mchCode].status = sts;
+	cMR[mchCode].remark = remark;
+	cMR[mchCode].User = user;
 }
 
 module.exports.mchRunRecord = function (myRunR, mchCode, name, side, noOfRun, runTime, coinPaid, wechatPaid, epayPaid, manualPaid, det, softnr, lb, status, date, startTime, endTime){
@@ -1949,6 +1990,32 @@ module.exports.save2csv = function(type, data, callback, rda){
 				callback(csvPath, fname, rda)
 			});
 		}
+	} else if (type == "controlMon") {
+		//console.log(timenow)
+		if (moment().isAfter(cutTime)) {
+			if (moment().add(1,'days').format("MMMM") != thisMonth ) {
+				thisMonth = moment().add(1,'days').format("MMMM")
+			}
+		}
+		var fname = "Monitoring_record_"+outlet.name+"_"+thisMonth+".csv";
+		const typeAppend = controlMonAppend;
+		const typeCreate = controlMonCreate;
+		const csvPath = ctrlMntrRpt+"_"+thisMonth+".csv";
+		if (fs.existsSync(csvPath)) {
+			var csv = typeAppend.parse(data) + newLine;
+			fs.appendFile(csvPath, csv, function (err) {
+				if (err) throw err;
+				//console.log('The data was appended to the file');
+				callback(csvPath, fname, rda)
+			});
+		} else {
+			var csv = outlet.name + " Monitoring Record Report" + newLine + typeCreate.parse(data) + newLine;
+			fs.writeFile(csvPath, csv, function(err) {
+				if (err) throw err;
+				//console.log("The new csv file has been created");
+				callback(csvPath, fname, rda)
+			});
+		}
 	} else if (type == "ePayment") {
 		if (moment().isAfter(cutTime)) {
 			if (moment().add(1,'days').format("MMMM") != thisMonth ) {
@@ -2175,7 +2242,11 @@ module.exports.upload2GD = function(fpath, fname, dfolder) {
 	fs.readFile('./credentials/credentials.json', (err, content) => {
 	  if (err) return console.log('Error loading client secret file:', err);
 	  // Authorize a client with credentials, then call the Google Drive API.
-	 	//googleapi.updateOrupload(JSON.parse(content), googleapi.listFiles, fpath, fname , dfolder)
+	 	if (mode == "production") {
+	 		googleapi.updateOrupload(JSON.parse(content), googleapi.listFiles, fpath, fname , dfolder)
+		} else {
+			console.log("Uploading......")
+		}
 	});
 }
 
@@ -2206,7 +2277,7 @@ async function upload2FTP(ftu) {
     return await new Promise(async function(resolve, reject) {
         try {
 	        await client.access({
-	                host: "pjs5.dyndns.org",
+	                host: outlet.host,
 	                port: "21",
 	                user: outlet.ftpUser,
 	                password: outlet.ftpPw,
@@ -2244,7 +2315,7 @@ module.exports.downloadFilesFTP = async function(dest_path, source_name, source_
     return await new Promise(async function(resolve, reject) {
         try {
 	        await client.access({
-	                host: "pjs5.dyndns.org",
+	                host: outlet.host,
 	                port: "21",
 	                user: outlet.ftpUser,
 	                password: outlet.ftpPw,

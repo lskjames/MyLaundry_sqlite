@@ -1,6 +1,6 @@
 module.exports = {
 	brand: "Otouch",
-	name: "PJ21",
+	name: "SP",
 	cold10kg: 5,
 	cold14kg: 7,
 	cold25kg: 11,
@@ -17,5 +17,5 @@ module.exports = {
 	clientSecret:"LsgxtuDrkLYprIWpDVAytIuUXguxNmrF",
 	rptFolderID: "1S0nhFQ3MY3Kylj6nUiOkStVSO5AOSklQ",
     	crossOutletID: "1fcH7_0kv0ycaei4mh71MNKY1HRprdx2J",
-	url: "\"https://membranous-molly-7085.dataplicity.io\""
+	url: "\"https://localhost\""
 }
