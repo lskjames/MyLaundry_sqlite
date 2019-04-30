@@ -372,23 +372,6 @@ io.on('connection', function (socket) { // Notify for a new connection and pass 
 });
 
 io.of('/reports').on('connection', function(socket) {
-  var dailySales = "DailySum_Sales_"+outlet.name+"_March"
-
-  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
-    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
-  });
-  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
-    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
-  });
-  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
-    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
-  });
-  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
-    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
-  });
-  ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
-    fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
-  });
   ss(socket).on('DailySum_Sales_PJ21_March', function(stream) {
     fs.createReadStream('./reports/DailySum_Sales_PJ21_March.csv').pipe(stream);
   });
